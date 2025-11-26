@@ -1,0 +1,32 @@
+[package]
+name = "figurehead"
+version = "0.1.0"
+edition = "2021"
+authors = ["Matthew Krohn <matthew.d.krohn@gmail.com>"]
+license = "MIT"
+description = "A Rust utility to convert Mermaid.js diagram markup into ASCII diagrams"
+repository = "https://github.com/mkroehn/figurehead-rs"
+keywords = ["mermaid", "ascii", "diagram", "cli", "converter"]
+categories = ["command-line-utilities", "graphics", "visualization"]
+
+[dependencies]
+anyhow = "1.0"
+chumsky = "0.11"
+clap = { version = "4.5", features = ["derive"] }
+crossterm = "0.27"
+thiserror = "1.0"
+unicode-width = "0.1"
+
+[[bin]]
+name = "figurehead"
+path = "src/main.rs"
+
+[dev-dependencies]
+criterion = "0.7.0"
+proptest = "1.9.0"
+
+[features]
+default = ["flowchart"]
+flowchart = []
+sequence = []
+class = []
