@@ -155,17 +155,44 @@ fn normalize_inline_labels(input: &str) -> String {
     let mut result = String::new();
     let mut last_index = 0;
     let len = input.len();
+    let bytes = input.as_bytes();
     let mut i = 0;
 
     while i < len {
-        if let Some((replacement, next_index)) = match_inline_pattern(input, i) {
-            if last_index < i {
-                result.push_str(&input[last_index..i]);
+        if bytes[i] == b'|' {
+            if let Some(label_end_rel) = input[i + 1..].find('|') {
+                let label_end = i + 1 + label_end_rel;
+                let label = &input[i + 1..label_end];
+                let mut suffix_idx = label_end + 1;
+                while suffix_idx < len && bytes[suffix_idx].is_ascii_whitespace() {
+                    suffix_idx += 1;
+                }
+
+                if let Some(&connector) = CONNECTORS.iter().find(|&&conn| {
+                    suffix_idx + conn.len() <= len && input[suffix_idx..].starts_with(conn)
+                }) {
+                    let suffix_end = suffix_idx + connector.len();
+                    let mut prefix_idx = i;
+                    while prefix_idx > 0 {
+                        let c = bytes[prefix_idx - 1];
+                        if c == b'-' || c == b'=' {
+                            prefix_idx -= 1;
+                            continue;
+                        }
+                        break;
+                    }
+
+                    result.push_str(&input[last_index..prefix_idx]);
+                    result.push_str(connector);
+                    result.push('|');
+                    result.push_str(label);
+                    result.push('|');
+
+                    i = suffix_end;
+                    last_index = suffix_end;
+                    continue;
+                }
             }
-            result.push_str(&replacement);
-            i = next_index;
-            last_index = i;
-            continue;
         }
         i += 1;
     }
@@ -177,47 +204,6 @@ fn normalize_inline_labels(input: &str) -> String {
     result
 }
 
-fn match_inline_pattern(input: &str, idx: usize) -> Option<(String, usize)> {
-    let len = input.len();
-    if idx + 2 >= len {
-        return None;
-    }
-
-    const PATTERNS: [(&str, &str); 2] = [("--", "-->"), ("--", "---")];
-
-    for &(prefix, suffix) in PATTERNS.iter() {
-        if input[idx..].starts_with(prefix) {
-            let mut pos = idx + prefix.len();
-            while pos < len && input.as_bytes()[pos].is_ascii_whitespace() {
-                pos += 1;
-            }
-
-            if pos < len && input[pos..].starts_with('|') {
-                let label_start = pos + 1;
-                if label_start < len {
-                    if let Some(label_end_rel) = input[label_start..].find('|') {
-                        let label_end = label_start + label_end_rel;
-                        let label = &input[label_start..label_end];
-                        let mut after_label = label_end + 1;
-                        while after_label < len && input.as_bytes()[after_label].is_ascii_whitespace()
-                        {
-                            after_label += 1;
-                        }
-
-                        if input[after_label..].starts_with(suffix) {
-                            let replacement = format!("{}|{}|", suffix, label);
-                            let next_index = after_label + suffix.len();
-                            return Some((replacement, next_index));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    None
-}
-
 fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> Result<()> {
     match statement {
         Statement::Node(node) => {
@@ -226,7 +212,7 @@ fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> R
         Statement::Edge(edge) => {
             ensure_node(database, &edge.from)?;
             ensure_node(database, &edge.to)?;
-            database.add_edge(&edge.from, &edge.to)?;
+            database.add_edge_with_label(&edge.from, &edge.to, edge.label.as_deref())?;
         }
         Statement::Subgraph(_, children) => {
             for child in children {
