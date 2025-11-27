@@ -8,6 +8,8 @@ use super::FlowchartDatabase;
 use crate::{Database, Parser};
 use anyhow::Result;
 
+const CONNECTORS: [&str; 4] = ["-->", "==>", "---", "-.-"];
+
 /// Flowchart parser implementation
 pub struct FlowchartParser;
 
@@ -61,7 +63,9 @@ fn extract_statements(input: &str) -> Vec<String> {
     let mut current_subgraph: Vec<String> = Vec::new();
     let mut in_subgraph = false;
 
-    for line in input.lines() {
+    let normalized_input = normalize_inline_labels(input);
+
+    for line in normalized_input.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with("%%") {
             continue;
@@ -93,11 +97,125 @@ fn extract_statements(input: &str) -> Vec<String> {
                 continue;
             }
 
-            statements.push(segment.to_string());
+            statements.extend(split_chained_edges(segment));
         }
     }
 
     statements
+}
+
+fn split_chained_edges(statement: &str) -> Vec<String> {
+    let trimmed = statement.trim();
+    let mut connectors = Vec::new();
+    let mut nodes = Vec::new();
+    let mut cursor = 0;
+
+    while cursor < trimmed.len() {
+        if let Some((pos, conn)) = find_next_connector(trimmed, cursor) {
+            let node = trimmed[cursor..pos].trim();
+            if !node.is_empty() {
+                nodes.push(node.to_string());
+            }
+            connectors.push(conn);
+            cursor = pos + conn.len();
+            continue;
+        }
+        break;
+    }
+
+    if cursor <= trimmed.len() {
+        let node = trimmed[cursor..].trim();
+        if !node.is_empty() {
+            nodes.push(node.to_string());
+        }
+    }
+
+    if connectors.is_empty() || nodes.len() <= 1 {
+        return vec![trimmed.to_string()];
+    }
+
+    let mut edges = Vec::new();
+    for i in 0..connectors.len() {
+        if let (Some(from), Some(to)) = (nodes.get(i), nodes.get(i + 1)) {
+            edges.push(format!("{}{}{}", from, connectors[i], to));
+        }
+    }
+
+    edges
+}
+
+fn find_next_connector(statement: &str, start: usize) -> Option<(usize, &'static str)> {
+    CONNECTORS
+        .iter()
+        .filter_map(|&conn| statement[start..].find(conn).map(|pos| (start + pos, conn)))
+        .min_by_key(|(pos, _)| *pos)
+}
+
+fn normalize_inline_labels(input: &str) -> String {
+    let mut result = String::new();
+    let mut last_index = 0;
+    let len = input.len();
+    let mut i = 0;
+
+    while i < len {
+        if let Some((replacement, next_index)) = match_inline_pattern(input, i) {
+            if last_index < i {
+                result.push_str(&input[last_index..i]);
+            }
+            result.push_str(&replacement);
+            i = next_index;
+            last_index = i;
+            continue;
+        }
+        i += 1;
+    }
+
+    if last_index < len {
+        result.push_str(&input[last_index..]);
+    }
+
+    result
+}
+
+fn match_inline_pattern(input: &str, idx: usize) -> Option<(String, usize)> {
+    let len = input.len();
+    if idx + 2 >= len {
+        return None;
+    }
+
+    const PATTERNS: [(&str, &str); 2] = [("--", "-->"), ("--", "---")];
+
+    for &(prefix, suffix) in PATTERNS.iter() {
+        if input[idx..].starts_with(prefix) {
+            let mut pos = idx + prefix.len();
+            while pos < len && input.as_bytes()[pos].is_ascii_whitespace() {
+                pos += 1;
+            }
+
+            if pos < len && input[pos..].starts_with('|') {
+                let label_start = pos + 1;
+                if label_start < len {
+                    if let Some(label_end_rel) = input[label_start..].find('|') {
+                        let label_end = label_start + label_end_rel;
+                        let label = &input[label_start..label_end];
+                        let mut after_label = label_end + 1;
+                        while after_label < len && input.as_bytes()[after_label].is_ascii_whitespace()
+                        {
+                            after_label += 1;
+                        }
+
+                        if input[after_label..].starts_with(suffix) {
+                            let replacement = format!("{}|{}|", suffix, label);
+                            let next_index = after_label + suffix.len();
+                            return Some((replacement, next_index));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> Result<()> {
@@ -154,6 +272,32 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_statements_handles_chains_and_comments() {
+        let input = r#"
+            graph TB
+            A-->B-->C
+            %% ignore
+            D-->E"#;
+
+        let statements = extract_statements(input);
+        assert_eq!(statements, vec!["A-->B", "B-->C", "D-->E"]);
+    }
+
+    #[test]
+    fn test_split_chained_edges() {
+        let edges = split_chained_edges("A-->B-->C-->D");
+        assert_eq!(edges, vec!["A-->B", "B-->C", "C-->D"]);
+    }
+
+    #[test]
+    fn test_normalize_inline_labels() {
+        let statement = "A--|Yes|-->B; C--|No|---D";
+        let normalized = normalize_inline_labels(statement);
+        assert!(normalized.contains("-->|Yes|"));
+        assert!(normalized.contains("---|No|"));
+    }
+
+    #[test]
     fn test_apply_statement_with_nodes_and_edges() {
         let parser = ChumskyFlowchartParser::new();
         let mut database = FlowchartDatabase::new();
@@ -185,5 +329,28 @@ mod tests {
         apply_statement(&stmt, &mut database).unwrap();
         assert_eq!(database.edge_count(), 2);
         assert_eq!(database.node_count(), 3);
+    }
+
+    #[test]
+    fn test_flowchart_parser_handles_chained_edges() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        parser.parse("graph TD\n    A-->B-->C", &mut database).unwrap();
+        assert_eq!(database.edge_count(), 2);
+        assert_eq!(database.node_count(), 3);
+    }
+
+    #[test]
+    fn test_flowchart_parser_handles_inline_label_connectors() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        parser
+            .parse("graph TD\n    A --|Yes|--> B", &mut database)
+            .unwrap();
+        assert_eq!(database.edge_count(), 1);
+        assert!(database.get_node("A").is_some());
+        assert!(database.get_node("B").is_some());
     }
 }
