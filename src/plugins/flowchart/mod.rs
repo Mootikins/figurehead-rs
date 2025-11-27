@@ -3,20 +3,22 @@
 //! This module contains the flowchart diagram implementation for Mermaid.js
 //! flowchart syntax support.
 
+use crate::core::{Detector, Diagram};
 use std::sync::Arc;
-use crate::core::{Diagram, Detector};
 
-mod detector;
-mod parser;
+mod chumsky_parser;
 mod database;
-mod renderer;
+mod detector;
 mod layout;
+mod parser;
+mod renderer;
+mod whitespace;
 
-pub use detector::*;
-pub use parser::*;
 pub use database::*;
-pub use renderer::*;
+pub use detector::*;
 pub use layout::*;
+pub use parser::*;
+pub use renderer::*;
 
 /// Flowchart diagram implementation
 pub struct FlowchartDiagram;
@@ -54,7 +56,7 @@ impl Diagram for FlowchartDiagram {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::core::{Parser, Database, Renderer};
+    use crate::core::{Database, Parser, Renderer};
 
     #[test]
     fn test_full_pipeline() {
