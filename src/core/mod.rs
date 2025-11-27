@@ -3,18 +3,18 @@
 //! This module defines the fundamental traits that all diagram types must implement,
 //! following the mermaid.js architecture with SOLID principles.
 
-mod diagram;
 mod database;
+mod detector;
+mod diagram;
+mod error;
+mod layout;
 mod parser;
 mod renderer;
-mod layout;
-mod detector;
-mod error;
 
-pub use diagram::*;
 pub use database::*;
+pub use detector::*;
+pub use diagram::*;
+pub use error::*;
+pub use layout::*;
 pub use parser::*;
 pub use renderer::*;
-pub use layout::*;
-pub use detector::*;
-pub use error::*;
