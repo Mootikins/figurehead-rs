@@ -22,6 +22,10 @@ target
 
 # Claude
 CLAUDE.md
+.claude/
+
+# Local reference files
+ascii_shape_reference.md
 
 # External repositories (don't commit)
 mermaid/
