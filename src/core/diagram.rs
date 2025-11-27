@@ -3,8 +3,8 @@
 //! This trait defines the interface that all diagram implementations must follow.
 //! It's inspired by mermaid.js's plugin system but adapted for Rust with SOLID principles.
 
+use super::{Database, Detector, Parser, Renderer};
 use std::sync::Arc;
-use super::{Database, Parser, Renderer, Detector};
 
 /// Core trait for diagram types
 ///
@@ -55,7 +55,7 @@ mod tests {
     #[test]
     fn test_diagram_trait_exists() {
         // This test ensures we have the core Diagram trait
-        let diagram = FlowchartDiagram;
+        let _diagram = FlowchartDiagram;
         assert_eq!(FlowchartDiagram::name(), "flowchart");
         assert_eq!(FlowchartDiagram::version(), "0.1.0");
     }

@@ -3,7 +3,6 @@
 //! This trait defines the interface for detecting diagram types
 //! from markup language patterns.
 
-
 /// Core trait for diagram type detectors
 ///
 /// This trait represents the detection layer that identifies diagram types
@@ -42,7 +41,23 @@ mod tests {
         // This test ensures we have the DiagramDetector trait
         let detector = FlowchartDetector::new();
         assert_eq!(detector.diagram_type(), "flowchart");
-        assert_eq!(detector.patterns(), vec!["graph", "flowchart", "-->", "---"]);
+        assert_eq!(
+            detector.patterns(),
+            vec![
+                "graph",
+                "flowchart",
+                "-->",
+                "---",
+                "subgraph",
+                "end",
+                "[",
+                "]",
+                "(",
+                ")",
+                "{",
+                "}"
+            ]
+        );
     }
 
     #[test]

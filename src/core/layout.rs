@@ -67,4 +67,3 @@ mod tests {
         assert!(output.height > 0);
     }
 }
-

@@ -322,7 +322,9 @@ mod tests {
         let parser = FlowchartParser::new();
         let mut database = FlowchartDatabase::new();
 
-        parser.parse("graph TD\n    A-->B-->C", &mut database).unwrap();
+        parser
+            .parse("graph TD\n    A-->B-->C", &mut database)
+            .unwrap();
         assert_eq!(database.edge_count(), 2);
         assert_eq!(database.node_count(), 3);
     }

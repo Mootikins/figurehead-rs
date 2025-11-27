@@ -64,7 +64,7 @@ mod integration_tests {
 
         // Test that we can create all components
         let detector = FlowchartDiagram::detector();
-        let mut parser = FlowchartDiagram::create_parser();
+        let parser = FlowchartDiagram::create_parser();
         let mut database = FlowchartDiagram::create_database();
         let renderer = FlowchartDiagram::create_renderer();
 
@@ -97,7 +97,7 @@ mod integration_tests {
         let detector = FlowchartDetector::new();
         assert!(detector.detect(input));
 
-        let mut parser = FlowchartParser::new();
+        let parser = FlowchartParser::new();
         let mut database = FlowchartDatabase::new();
 
         // Should parse without panicking (even if implementation is basic)

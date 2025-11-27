@@ -26,12 +26,7 @@ impl FlowchartDatabase {
         Self::default()
     }
 
-    pub fn add_edge_with_label(
-        &mut self,
-        from: &str,
-        to: &str,
-        label: Option<&str>,
-    ) -> Result<()> {
+    pub fn add_edge_with_label(&mut self, from: &str, to: &str, label: Option<&str>) -> Result<()> {
         self.edges.push(FlowchartEdge {
             from: from.to_string(),
             to: to.to_string(),
@@ -137,7 +132,10 @@ impl FlowchartDatabase {
     }
 
     pub fn out_degree(&self, node_id: &str) -> usize {
-        self.edges.iter().filter(|edge| edge.from == node_id).count()
+        self.edges
+            .iter()
+            .filter(|edge| edge.from == node_id)
+            .count()
     }
 
     pub fn get_neighbors(&self, node_id: &str) -> Vec<&str> {
