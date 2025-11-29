@@ -1,0 +1,25 @@
+[package]
+name = "figurehead-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI tool to convert Mermaid.js diagram markup into ASCII diagrams"
+keywords = ["mermaid", "ascii", "diagram", "cli", "converter"]
+categories = ["command-line-utilities", "graphics", "visualization"]
+
+[[bin]]
+name = "figurehead"
+path = "src/main.rs"
+
+[dependencies]
+figurehead = { path = "../figurehead" }
+anyhow.workspace = true
+clap.workspace = true
+crossterm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

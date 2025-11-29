@@ -1,0 +1,108 @@
+//! Figurehead - Convert Mermaid.js diagrams to ASCII art
+//!
+//! A library for parsing Mermaid.js flowchart syntax and rendering it as ASCII art.
+//!
+//! # Quick Start
+//!
+//! ```rust
+//! use figurehead::render;
+//!
+//! let input = "graph LR; A-->B-->C";
+//! let ascii = render(input).unwrap();
+//! println!("{}", ascii);
+//! ```
+//!
+//! # Advanced Usage
+//!
+//! For more control, use the individual components:
+//!
+//! ```rust
+//! use figurehead::prelude::*;
+//!
+//! let input = "graph TD; A[Start] --> B{Decision}";
+//!
+//! // Parse into a database
+//! let parser = FlowchartParser::new();
+//! let mut database = FlowchartDatabase::new();
+//! parser.parse(input, &mut database).unwrap();
+//!
+//! // Access the parsed data
+//! assert_eq!(database.node_count(), 2);
+//! assert_eq!(database.direction(), Direction::TopDown);
+//!
+//! // Render to ASCII
+//! let renderer = FlowchartRenderer::new();
+//! let ascii = renderer.render(&database).unwrap();
+//! ```
+
+pub mod core;
+pub mod plugins;
+
+pub use core::*;
+
+/// Prelude module for convenient imports
+pub mod prelude {
+    pub use crate::core::{
+        Database, Detector, Direction, EdgeData, EdgeType, LayoutAlgorithm, NodeData, NodeShape,
+        Parser, Renderer,
+    };
+    pub use crate::plugins::flowchart::{
+        FlowchartDatabase, FlowchartDetector, FlowchartLayoutAlgorithm, FlowchartParser,
+        FlowchartRenderer,
+    };
+}
+
+/// Render Mermaid flowchart syntax to ASCII art
+///
+/// This is the simplest way to convert a Mermaid diagram to ASCII.
+///
+/// # Arguments
+/// * `input` - Mermaid flowchart syntax (e.g., "graph LR; A-->B")
+///
+/// # Returns
+/// * `Ok(String)` - The ASCII art representation
+/// * `Err` - If parsing or rendering fails
+///
+/// # Example
+/// ```rust
+/// use figurehead::render;
+///
+/// let ascii = render("graph LR; A[Start]-->B[End]").unwrap();
+/// assert!(ascii.contains("Start"));
+/// assert!(ascii.contains("End"));
+/// ```
+pub fn render(input: &str) -> anyhow::Result<String> {
+    use crate::core::{Parser as _, Renderer as _};
+    use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer};
+
+    let parser = FlowchartParser::new();
+    let mut database = FlowchartDatabase::new();
+    parser.parse(input, &mut database)?;
+
+    let renderer = FlowchartRenderer::new();
+    renderer.render(&database)
+}
+
+/// Parse Mermaid flowchart syntax into a database without rendering
+///
+/// Useful when you need to inspect or modify the parsed data before rendering.
+///
+/// # Example
+/// ```rust
+/// use figurehead::{parse, Direction};
+/// use figurehead::prelude::Database;
+///
+/// let db = parse("graph TD; A-->B-->C").unwrap();
+/// assert_eq!(db.node_count(), 3);
+/// assert_eq!(db.edge_count(), 2);
+/// assert_eq!(db.direction(), Direction::TopDown);
+/// ```
+pub fn parse(input: &str) -> anyhow::Result<plugins::flowchart::FlowchartDatabase> {
+    use crate::core::Parser as _;
+    use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser};
+
+    let parser = FlowchartParser::new();
+    let mut database = FlowchartDatabase::new();
+    parser.parse(input, &mut database)?;
+    Ok(database)
+}

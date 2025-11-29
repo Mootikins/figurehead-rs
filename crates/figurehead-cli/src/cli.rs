@@ -8,7 +8,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-use crate::plugins::Orchestrator;
+use figurehead::plugins::Orchestrator;
 
 /// Figurehead - Convert Mermaid.js diagrams to ASCII art
 #[derive(Parser)]
@@ -219,7 +219,7 @@ impl FigureheadApp {
     }
 
     /// Read input from file or stdin
-    fn read_input(&self, input: Option<PathBuf>) -> Result<String> {
+    pub fn read_input(&self, input: Option<PathBuf>) -> Result<String> {
         match input {
             Some(path) => {
                 if path.to_string_lossy() == "-" {
@@ -244,7 +244,7 @@ impl FigureheadApp {
     }
 
     /// Write output to file or stdout
-    fn write_output(&self, output: Option<PathBuf>, content: &str) -> Result<()> {
+    pub fn write_output(&self, output: Option<PathBuf>, content: &str) -> Result<()> {
         match output {
             Some(path) => {
                 if path.to_string_lossy() == "-" {
@@ -266,6 +266,18 @@ impl FigureheadApp {
         }
         Ok(())
     }
+
+    /// Get a reference to the orchestrator (for testing)
+    #[cfg(test)]
+    pub fn orchestrator(&self) -> &Orchestrator {
+        &self.orchestrator
+    }
+
+    /// Get a mutable reference to the orchestrator (for testing)
+    #[cfg(test)]
+    pub fn orchestrator_mut(&mut self) -> &mut Orchestrator {
+        &mut self.orchestrator
+    }
 }
 
 impl Default for FigureheadApp {
@@ -278,6 +290,7 @@ impl Default for FigureheadApp {
 mod tests {
     use super::*;
     use clap::Parser;
+    use figurehead::plugins::flowchart::FlowchartDetector;
     use std::fs;
     use tempfile::tempdir;
 
@@ -349,14 +362,12 @@ mod tests {
     #[test]
     fn test_figurehead_app_creation() {
         let _app = FigureheadApp::new();
-        // Should not panic
         assert!(true);
     }
 
     #[test]
     fn test_figurehead_app_default() {
         let _app = FigureheadApp::default();
-        // Should not panic
         assert!(true);
     }
 
@@ -365,7 +376,6 @@ mod tests {
         let app = FigureheadApp::new();
         let input = "graph TD; A-->B;";
 
-        // Test reading from a temporary file
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.mmd");
         fs::write(&file_path, input).unwrap();
@@ -379,7 +389,6 @@ mod tests {
         let app = FigureheadApp::new();
         let output = "Test output";
 
-        // Test writing to a temporary file
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("output.txt");
 
@@ -391,17 +400,14 @@ mod tests {
 
     #[test]
     fn test_detect_command_with_flowchart() {
-        // Create orchestrator with detector
-        let mut orchestrator = Orchestrator::with_flowchart_plugins();
-        orchestrator.register_detector(
+        let mut app = FigureheadApp::new();
+        app.orchestrator_mut().register_detector(
             "flowchart".to_string(),
-            Box::new(crate::plugins::flowchart::FlowchartDetector::new()),
+            Box::new(FlowchartDetector::new()),
         );
 
         let input = "graph TD; A-->B;";
-
-        // Test detection
-        let result = orchestrator.detect_diagram_type(input);
+        let result = app.orchestrator().detect_diagram_type(input);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "flowchart");
     }
@@ -411,8 +417,7 @@ mod tests {
         let app = FigureheadApp::new();
         let input = "This is not a diagram";
 
-        // Test detection
-        let result = app.orchestrator.detect_diagram_type(input);
+        let result = app.orchestrator().detect_diagram_type(input);
         assert!(result.is_err());
     }
 
@@ -421,8 +426,7 @@ mod tests {
         let app = FigureheadApp::new();
         let input = "graph TD; A-->B;";
 
-        // Test conversion
-        let result = app.orchestrator.process_flowchart(input);
+        let result = app.orchestrator().process_flowchart(input);
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -431,20 +435,18 @@ mod tests {
 
     #[test]
     fn test_validate_command_valid_flowchart() {
-        // Create orchestrator with detector
-        let mut orchestrator = Orchestrator::with_flowchart_plugins();
-        orchestrator.register_detector(
+        let mut app = FigureheadApp::new();
+        app.orchestrator_mut().register_detector(
             "flowchart".to_string(),
-            Box::new(crate::plugins::flowchart::FlowchartDetector::new()),
+            Box::new(FlowchartDetector::new()),
         );
 
         let input = "graph TD; A-->B;";
 
-        // Test validation
-        let detection_result = orchestrator.detect_diagram_type(input);
+        let detection_result = app.orchestrator().detect_diagram_type(input);
         assert!(detection_result.is_ok());
 
-        let process_result = orchestrator.process(input);
+        let process_result = app.orchestrator().process(input);
         assert!(process_result.is_ok());
     }
 
@@ -453,17 +455,13 @@ mod tests {
         let app = FigureheadApp::new();
         let input = "This is not a diagram";
 
-        // Test validation
-        let detection_result = app.orchestrator.detect_diagram_type(input);
+        let detection_result = app.orchestrator().detect_diagram_type(input);
         assert!(detection_result.is_err());
     }
 
     #[test]
     fn test_types_command_json_format() {
         let app = FigureheadApp::new();
-
-        // This would normally print JSON output
-        // For testing, we just ensure it doesn't panic
         let result = app.types_command(true, false);
         assert!(result.is_ok());
     }
@@ -471,9 +469,6 @@ mod tests {
     #[test]
     fn test_types_command_human_format() {
         let app = FigureheadApp::new();
-
-        // This would normally print human-readable output
-        // For testing, we just ensure it doesn't panic
         let result = app.types_command(false, false);
         assert!(result.is_ok());
     }

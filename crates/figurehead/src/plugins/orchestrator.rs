@@ -14,7 +14,7 @@ pub struct Orchestrator {
     detectors: HashMap<String, Box<dyn Detector>>,
     flowchart_parser: Option<crate::plugins::flowchart::FlowchartParser>,
     flowchart_layout: Option<crate::plugins::flowchart::FlowchartLayoutAlgorithm>,
-    ascii_renderer: Option<crate::plugins::flowchart::FlowchartAsciiRenderer>,
+    ascii_renderer: Option<crate::plugins::flowchart::FlowchartRenderer>,
 }
 
 impl Orchestrator {
@@ -34,7 +34,7 @@ impl Orchestrator {
             detectors: HashMap::new(),
             flowchart_parser: Some(crate::plugins::flowchart::FlowchartParser::new()),
             flowchart_layout: Some(crate::plugins::flowchart::FlowchartLayoutAlgorithm::new()),
-            ascii_renderer: Some(crate::plugins::flowchart::FlowchartAsciiRenderer::new()),
+            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::new()),
         }
     }
 
@@ -294,9 +294,9 @@ mod tests {
         let result = orchestrator.process_flowchart("");
 
         assert!(result.is_ok());
+        // Empty input produces empty output (no nodes to render)
         let output = result.unwrap();
-        // Even empty input should produce some output
-        assert!(!output.is_empty());
+        assert!(output.is_empty());
     }
 
     #[test]

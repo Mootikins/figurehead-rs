@@ -48,7 +48,7 @@ mod tests {
         // This test ensures we have the DiagramRenderer trait
         let renderer = FlowchartRenderer::new();
         assert_eq!(renderer.name(), "ascii");
-        assert_eq!(renderer.version(), "0.1.0");
+        assert_eq!(renderer.version(), "0.2.0");
         assert_eq!(renderer.format(), "ascii");
     }
 
@@ -57,14 +57,13 @@ mod tests {
         let renderer = FlowchartRenderer::new();
         let mut database = FlowchartDatabase::new();
 
-        database.add_node("A", "Node A").unwrap();
-        database.add_node("B", "Node B").unwrap();
-        database.add_edge("A", "B").unwrap();
+        database.add_simple_node("A", "Node A").unwrap();
+        database.add_simple_node("B", "Node B").unwrap();
+        database.add_simple_edge("A", "B").unwrap();
 
         let output = renderer.render(&database).unwrap();
-        assert!(output.contains("Flowchart Diagram"));
+        // The new renderer produces ASCII art with box characters
         assert!(output.contains("Node A"));
         assert!(output.contains("Node B"));
-        assert!(output.contains("Edge:"));
     }
 }

@@ -3,12 +3,12 @@
 //! Parses flowchart diagram markup into structured data by delegating to the chumsky-based
 //! statement parser for each logical statement in the input.
 
-use super::chumsky_parser::{ChumskyFlowchartParser, Statement};
+use super::chumsky_parser::{ChumskyFlowchartParser, NodeRef, Statement};
 use super::FlowchartDatabase;
-use crate::{Database, Parser};
+use crate::core::{Database, EdgeData, NodeData, Parser};
 use anyhow::Result;
 
-const CONNECTORS: [&str; 4] = ["-->", "==>", "---", "-.-"];
+const CONNECTORS: [&str; 6] = ["-->", "==>", "---", "-.-", "-.->", "~~~"];
 
 /// Flowchart parser implementation
 pub struct FlowchartParser;
@@ -19,14 +19,29 @@ impl FlowchartParser {
     }
 }
 
+impl Default for FlowchartParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Parser<FlowchartDatabase> for FlowchartParser {
     fn parse(&self, input: &str, database: &mut FlowchartDatabase) -> Result<()> {
-        let parser = ChumskyFlowchartParser::new();
+        let chumsky = ChumskyFlowchartParser::new();
+
+        // First, try to extract the direction from the header
+        for line in input.lines() {
+            let trimmed = line.trim();
+            if let Some(direction) = chumsky.parse_header(trimmed) {
+                database.set_direction(direction);
+                break;
+            }
+        }
 
         let mut skipped_statements = Vec::new();
 
         for statement_text in extract_statements(input) {
-            match parser.parse_statement(&statement_text) {
+            match chumsky.parse_statement(&statement_text) {
                 Ok(statement) => {
                     apply_statement(&statement, database)?;
                 }
@@ -207,12 +222,20 @@ fn normalize_inline_labels(input: &str) -> String {
 fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> Result<()> {
     match statement {
         Statement::Node(node) => {
-            database.add_node(&node.id, &node.label)?;
+            database.add_node(NodeData::with_shape(&node.id, &node.label, node.shape))?;
         }
         Statement::Edge(edge) => {
-            ensure_node(database, &edge.from)?;
-            ensure_node(database, &edge.to)?;
-            database.add_edge_with_label(&edge.from, &edge.to, edge.label.as_deref())?;
+            // Ensure both nodes exist with their shape info if available
+            ensure_node_from_ref(database, &edge.from_ref)?;
+            ensure_node_from_ref(database, &edge.to_ref)?;
+
+            // Add the edge with full metadata
+            let edge_data = if let Some(label) = &edge.label {
+                EdgeData::with_label(&edge.from, &edge.to, edge.edge_type, label)
+            } else {
+                EdgeData::with_type(&edge.from, &edge.to, edge.edge_type)
+            };
+            database.add_edge(edge_data)?;
         }
         Statement::Subgraph(_, children) => {
             for child in children {
@@ -224,10 +247,15 @@ fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> R
     Ok(())
 }
 
-fn ensure_node(database: &mut FlowchartDatabase, node_id: &str) -> Result<()> {
-    if database.get_node(node_id).is_none() {
-        database.add_node(node_id, node_id)?;
+/// Ensure a node exists, using shape info from the reference if available
+fn ensure_node_from_ref(database: &mut FlowchartDatabase, node_ref: &NodeRef) -> Result<()> {
+    if database.has_node(&node_ref.id) {
+        return Ok(());
     }
+
+    let label = node_ref.label.as_deref().unwrap_or(&node_ref.id);
+    let shape = node_ref.shape.unwrap_or_default();
+    database.add_node(NodeData::with_shape(&node_ref.id, label, shape))?;
     Ok(())
 }
 
@@ -249,6 +277,7 @@ fn is_graph_declaration(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::{Database, Direction, EdgeType, NodeShape};
 
     #[test]
     fn test_extract_statements_basics() {
@@ -284,37 +313,52 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_statement_with_nodes_and_edges() {
-        let parser = ChumskyFlowchartParser::new();
+    fn test_parser_sets_direction() {
+        let parser = FlowchartParser::new();
         let mut database = FlowchartDatabase::new();
 
-        let stmt = parser.parse_statement("A[Start]").unwrap();
-        apply_statement(&stmt, &mut database).unwrap();
-        assert_eq!(database.get_node("A"), Some("Start"));
-
-        let stmt = parser.parse_statement("A --> B").unwrap();
-        apply_statement(&stmt, &mut database).unwrap();
-        assert_eq!(database.get_node("B"), Some("B"));
-        assert_eq!(database.edge_count(), 1);
+        parser.parse("graph LR\n    A-->B", &mut database).unwrap();
+        assert_eq!(database.direction(), Direction::LeftRight);
     }
 
     #[test]
-    fn test_subgraph_population() {
-        let parser = ChumskyFlowchartParser::new();
+    fn test_parser_stores_node_shapes() {
+        let parser = FlowchartParser::new();
         let mut database = FlowchartDatabase::new();
 
-        let stmt = parser
-            .parse_statement(
-                r#"subgraph "Group"
-                    A --> B
-                    B --> C
-                end"#,
-            )
+        parser
+            .parse("graph TD\n    A[Rectangle]\n    B{Diamond}", &mut database)
             .unwrap();
 
-        apply_statement(&stmt, &mut database).unwrap();
-        assert_eq!(database.edge_count(), 2);
-        assert_eq!(database.node_count(), 3);
+        assert_eq!(database.get_node("A").unwrap().shape, NodeShape::Rectangle);
+        assert_eq!(database.get_node("B").unwrap().shape, NodeShape::Diamond);
+    }
+
+    #[test]
+    fn test_parser_stores_edge_types() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        parser
+            .parse("graph TD\n    A --> B\n    B ==> C", &mut database)
+            .unwrap();
+
+        let edges: Vec<_> = database.edges().collect();
+        assert_eq!(edges[0].edge_type, EdgeType::Arrow);
+        assert_eq!(edges[1].edge_type, EdgeType::ThickArrow);
+    }
+
+    #[test]
+    fn test_parser_stores_edge_labels() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        parser
+            .parse("graph TD\n    A -->|Yes| B", &mut database)
+            .unwrap();
+
+        let edges: Vec<_> = database.edges().collect();
+        assert_eq!(edges[0].label, Some("Yes".to_string()));
     }
 
     #[test]
@@ -338,7 +382,27 @@ mod tests {
             .parse("graph TD\n    A --|Yes|--> B", &mut database)
             .unwrap();
         assert_eq!(database.edge_count(), 1);
-        assert!(database.get_node("A").is_some());
-        assert!(database.get_node("B").is_some());
+        assert!(database.has_node("A"));
+        assert!(database.has_node("B"));
+    }
+
+    #[test]
+    fn test_subgraph_population() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        parser
+            .parse(
+                r#"graph TD
+                subgraph "Group"
+                    A --> B
+                    B --> C
+                end"#,
+                &mut database,
+            )
+            .unwrap();
+
+        assert_eq!(database.edge_count(), 2);
+        assert_eq!(database.node_count(), 3);
     }
 }

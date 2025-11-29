@@ -1,0 +1,25 @@
+[package]
+name = "figurehead"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A Rust library to convert Mermaid.js diagram markup into ASCII diagrams"
+keywords = ["mermaid", "ascii", "diagram", "converter"]
+categories = ["graphics", "visualization", "parsing"]
+
+[dependencies]
+anyhow.workspace = true
+chumsky.workspace = true
+thiserror.workspace = true
+unicode-width.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[features]
+default = ["flowchart"]
+flowchart = []
+sequence = []
+class = []

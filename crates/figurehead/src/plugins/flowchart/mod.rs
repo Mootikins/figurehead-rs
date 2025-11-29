@@ -56,7 +56,7 @@ impl Diagram for FlowchartDiagram {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::core::{Database, Parser, Renderer};
+    use crate::core::{Database, Direction, Parser, Renderer};
 
     #[test]
     fn test_full_pipeline() {
@@ -77,11 +77,11 @@ mod integration_tests {
         parser.parse(input, &mut database).unwrap();
         assert_eq!(database.node_count(), 3);
         assert_eq!(database.edge_count(), 2);
+        assert_eq!(database.direction(), Direction::TopDown);
 
-        // Test rendering
+        // Test rendering - should produce ASCII output
         let output = renderer.render(&database).unwrap();
-        assert!(output.contains("Flowchart Diagram"));
-        assert!(output.len() > 0);
+        assert!(!output.is_empty());
     }
 
     #[test]
@@ -100,8 +100,18 @@ mod integration_tests {
         let parser = FlowchartParser::new();
         let mut database = FlowchartDatabase::new();
 
-        // Should parse without panicking (even if implementation is basic)
         let result = parser.parse(input, &mut database);
         assert!(result.is_ok());
+
+        // Verify rich data is stored
+        assert_eq!(database.direction(), Direction::TopDown);
+        assert_eq!(
+            database.get_node("A").unwrap().shape,
+            crate::core::NodeShape::Rectangle
+        );
+        assert_eq!(
+            database.get_node("B").unwrap().shape,
+            crate::core::NodeShape::Diamond
+        );
     }
 }

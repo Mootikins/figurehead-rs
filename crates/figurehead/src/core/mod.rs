@@ -10,6 +10,7 @@ mod error;
 mod layout;
 mod parser;
 mod renderer;
+mod types;
 
 pub use database::*;
 pub use detector::*;
@@ -18,3 +19,4 @@ pub use error::*;
 pub use layout::*;
 pub use parser::*;
 pub use renderer::*;
+pub use types::*;

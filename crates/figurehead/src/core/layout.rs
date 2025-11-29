@@ -48,9 +48,9 @@ mod tests {
     fn test_layout_algorithm_trait_exists() {
         // This test ensures we have the LayoutAlgorithm trait
         let layout = FlowchartLayoutAlgorithm::new();
-        assert_eq!(layout.name(), "grid");
-        assert_eq!(layout.version(), "0.1.0");
-        assert_eq!(layout.direction(), "LR");
+        assert_eq!(layout.name(), "sugiyama");
+        assert_eq!(layout.version(), "0.2.0");
+        assert_eq!(layout.direction(), "configurable");
     }
 
     #[test]
@@ -58,8 +58,8 @@ mod tests {
         let layout = FlowchartLayoutAlgorithm::new();
         let mut database = FlowchartDatabase::new();
 
-        database.add_node("A", "Node A").unwrap();
-        database.add_node("B", "Node B").unwrap();
+        database.add_simple_node("A", "Node A").unwrap();
+        database.add_simple_node("B", "Node B").unwrap();
 
         let output = layout.layout(&database).unwrap();
         assert_eq!(output.nodes.len(), 2);
