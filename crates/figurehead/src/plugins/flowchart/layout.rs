@@ -163,6 +163,11 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         match direction {
             Direction::TopDown | Direction::BottomUp => {
                 // Vertical layout: layers are rows (Y), nodes distributed on X
+                // Find the widest node to establish the center line for alignment
+                let widest_node_width = node_sizes.values().map(|(w, _)| *w).max().unwrap_or(0);
+                // Center X is at padding + widest_node_width / 2
+                let center_x = self.config.padding + widest_node_width / 2;
+
                 let mut y = self.config.padding;
 
                 let layer_iter: Box<dyn Iterator<Item = &Vec<&str>>> = if direction.is_reversed() {
@@ -172,11 +177,13 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 };
 
                 for layer in layer_iter {
-                    let mut x = self.config.padding;
                     let mut layer_height = 0;
 
-                    for &node_id in layer {
+                    if layer.len() == 1 {
+                        // Single node - center it on the center line
+                        let node_id = layer[0];
                         let (width, height) = node_sizes[node_id];
+                        let x = center_x.saturating_sub(width / 2);
                         positioned_nodes.push(PositionedNode {
                             id: node_id.to_string(),
                             x,
@@ -184,10 +191,31 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                             width,
                             height,
                         });
+                        layer_height = height;
+                        max_width = max_width.max(x + width + self.config.padding);
+                    } else {
+                        // Multiple nodes - distribute across from center
+                        let total_width: usize = layer.iter()
+                            .map(|&id| node_sizes[id].0)
+                            .sum::<usize>()
+                            + (layer.len() - 1) * self.config.node_sep;
+                        let start_x = center_x.saturating_sub(total_width / 2);
+                        let mut x = start_x;
 
-                        x += width + self.config.node_sep;
-                        layer_height = layer_height.max(height);
-                        max_width = max_width.max(x);
+                        for &node_id in layer {
+                            let (width, height) = node_sizes[node_id];
+                            positioned_nodes.push(PositionedNode {
+                                id: node_id.to_string(),
+                                x,
+                                y,
+                                width,
+                                height,
+                            });
+
+                            x += width + self.config.node_sep;
+                            layer_height = layer_height.max(height);
+                            max_width = max_width.max(x);
+                        }
                     }
 
                     y += layer_height + self.config.rank_sep;
@@ -196,16 +224,31 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             }
             Direction::LeftRight | Direction::RightLeft => {
                 // Horizontal layout: layers are columns (X), nodes distributed on Y
+                // First, calculate the maximum height needed for any layer
+                let mut layer_max_heights: Vec<usize> = Vec::new();
+                for layer in &layer_nodes {
+                    let layer_height: usize = layer.iter()
+                        .map(|&id| node_sizes[id].1)
+                        .sum::<usize>()
+                        + layer.len().saturating_sub(1) * self.config.node_sep;
+                    layer_max_heights.push(layer_height);
+                }
+                let total_max_height = *layer_max_heights.iter().max().unwrap_or(&0);
+
                 let mut x = self.config.padding;
 
-                let layer_iter: Box<dyn Iterator<Item = &Vec<&str>>> = if direction.is_reversed() {
-                    Box::new(layer_nodes.iter().rev())
+                let layer_iter: Box<dyn Iterator<Item = (usize, &Vec<&str>)>> = if direction.is_reversed() {
+                    Box::new(layer_nodes.iter().enumerate().rev().map(|(i, l)| (i, l)))
                 } else {
-                    Box::new(layer_nodes.iter())
+                    Box::new(layer_nodes.iter().enumerate().map(|(i, l)| (i, l)))
                 };
 
-                for layer in layer_iter {
-                    let mut y = self.config.padding;
+                for (layer_idx, layer) in layer_iter {
+                    // Calculate total height of this layer's nodes
+                    let layer_height = layer_max_heights[layer_idx];
+                    // Center the layer vertically
+                    let start_y = self.config.padding + (total_max_height.saturating_sub(layer_height)) / 2;
+                    let mut y = start_y;
                     let mut layer_width = 0;
 
                     for &node_id in layer {
@@ -226,6 +269,8 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                     x += layer_width + self.config.rank_sep;
                     max_width = max_width.max(x);
                 }
+                // Ensure max_height accounts for the centered layout
+                max_height = max_height.max(self.config.padding + total_max_height);
             }
         }
 
