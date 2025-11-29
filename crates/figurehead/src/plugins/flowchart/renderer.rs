@@ -1,11 +1,11 @@
 //! ASCII rendering implementation for flowcharts
 //!
-//! Converts positioned nodes into ASCII diagrams using Unicode box drawing characters.
+//! Converts positioned nodes into ASCII diagrams using various character sets.
 
 use anyhow::Result;
 
 use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode};
-use crate::core::{Database, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
+use crate::core::{CharacterSet, Database, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
 
 /// ASCII canvas representing the final diagram
 #[derive(Debug, Clone)]
@@ -107,11 +107,26 @@ impl BoxChars {
 }
 
 /// Flowchart ASCII renderer
-pub struct FlowchartRenderer;
+pub struct FlowchartRenderer {
+    style: CharacterSet,
+}
 
 impl FlowchartRenderer {
+    /// Create a new renderer with default Unicode style
     pub fn new() -> Self {
-        Self
+        Self {
+            style: CharacterSet::default(),
+        }
+    }
+
+    /// Create a new renderer with a specific character set
+    pub fn with_style(style: CharacterSet) -> Self {
+        Self { style }
+    }
+
+    /// Get the current character set
+    pub fn style(&self) -> CharacterSet {
+        self.style
     }
 
     fn draw_node(
@@ -180,34 +195,47 @@ impl FlowchartRenderer {
         let y = node.y;
         let w = node.width;
         let h = node.height;
-        let mid_x = x + w / 2;
+
+        // Diamond structure for height 5:
+        //     /\        row 0: top point
+        //    /  \       row 1: expanding
+        //   <text>      row 2: middle (widest, with label)
+        //    \  /       row 3: contracting
+        //     \/        row 4: bottom point
+
         let mid_y = y + h / 2;
+        let half_h = h / 2;
+        let center_x = x + w / 2;
 
         // Top point
-        canvas.set_char(mid_x, y, '/');
-        canvas.set_char(mid_x + 1, y, '\\');
+        canvas.set_char(center_x, y, '/');
+        canvas.set_char(center_x + 1, y, '\\');
 
-        // Upper sides
-        for i in 1..h / 2 {
-            canvas.set_char(mid_x - i, y + i, '/');
-            canvas.set_char(mid_x + 1 + i, y + i, '\\');
+        // Upper expanding rows (between top point and middle)
+        for row in 1..half_h {
+            let left_x = center_x.saturating_sub(row);
+            let right_x = center_x + 1 + row;
+            canvas.set_char(left_x, y + row, '/');
+            canvas.set_char(right_x, y + row, '\\');
         }
 
-        // Middle with label
+        // Middle row with label
         canvas.set_char(x, mid_y, '<');
         canvas.set_char(x + w - 1, mid_y, '>');
         let label_x = x + (w.saturating_sub(label.len())) / 2;
         canvas.draw_text(label_x.max(x + 1), mid_y, label);
 
-        // Lower sides
-        for i in 1..h / 2 {
-            canvas.set_char(x + i, mid_y + i, '\\');
-            canvas.set_char(x + w - 1 - i, mid_y + i, '/');
+        // Lower contracting rows (between middle and bottom point)
+        for row in 1..half_h {
+            let left_x = center_x.saturating_sub(half_h - row);
+            let right_x = center_x + 1 + (half_h - row);
+            canvas.set_char(left_x, mid_y + row, '\\');
+            canvas.set_char(right_x, mid_y + row, '/');
         }
 
         // Bottom point
-        canvas.set_char(mid_x, y + h - 1, '\\');
-        canvas.set_char(mid_x + 1, y + h - 1, '/');
+        canvas.set_char(center_x, y + h - 1, '\\');
+        canvas.set_char(center_x + 1, y + h - 1, '/');
     }
 
     fn draw_circle(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
@@ -252,77 +280,201 @@ impl FlowchartRenderer {
             return;
         }
 
-        let (h_char, v_char) = match edge_type {
-            EdgeType::Arrow | EdgeType::Line | EdgeType::OpenArrow | EdgeType::CrossArrow => {
-                ('─', '│')
-            }
-            EdgeType::DottedArrow | EdgeType::DottedLine => ('┄', '┆'),
-            EdgeType::ThickArrow | EdgeType::ThickLine => ('═', '║'),
-            EdgeType::Invisible => return,
-        };
-
-        // Draw path between waypoints
-        for window in waypoints.windows(2) {
-            let (x1, y1) = window[0];
-            let (x2, y2) = window[1];
-
-            if y1 == y2 {
-                // Horizontal line
-                let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
-                for x in start..=end {
-                    if canvas.get_char(x, y1) == ' ' {
-                        canvas.set_char(x, y1, h_char);
-                    }
-                }
-            } else if x1 == x2 {
-                // Vertical line
-                let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
-                for y in start..=end {
-                    if canvas.get_char(x1, y) == ' ' {
-                        canvas.set_char(x1, y, v_char);
-                    }
-                }
-            } else {
-                // Diagonal - use orthogonal routing
-                // First go horizontal, then vertical
-                let mid_x = x2;
-                for x in x1.min(mid_x)..=x1.max(mid_x) {
-                    if canvas.get_char(x, y1) == ' ' {
-                        canvas.set_char(x, y1, h_char);
-                    }
-                }
-                for y in y1.min(y2)..=y1.max(y2) {
-                    if canvas.get_char(mid_x, y) == ' ' {
-                        canvas.set_char(mid_x, y, v_char);
-                    }
-                }
-            }
+        let chars = EdgeChars::for_type(edge_type);
+        if chars.is_invisible() {
+            return;
         }
 
-        // Draw arrowhead at the end
-        if edge_type.has_arrow() && waypoints.len() >= 2 {
-            let (x2, y2) = waypoints[waypoints.len() - 1];
-            let (x1, y1) = waypoints[waypoints.len() - 2];
+        let (x1, y1) = waypoints[0];
+        let (x2, y2) = waypoints[waypoints.len() - 1];
 
-            let arrow = if x2 > x1 {
-                '→'
-            } else if x2 < x1 {
-                '←'
-            } else if y2 > y1 {
-                '↓'
+        // Shorten endpoint by 1 to leave room for arrowhead
+        let has_arrow = edge_type.has_arrow();
+
+        // Determine if we need orthogonal routing
+        if y1 == y2 {
+            // Pure horizontal - adjust endpoint for arrow
+            let end_x = if has_arrow {
+                if x2 > x1 { x2.saturating_sub(1) } else { x2 + 1 }
             } else {
-                '↑'
+                x2
             };
+            self.draw_horizontal_line(canvas, y1, x1, end_x, &chars);
+            if has_arrow {
+                let arrow = if x2 > x1 { chars.arrow_right } else { chars.arrow_left };
+                canvas.set_char(end_x, y1, arrow);
+            }
+        } else if x1 == x2 {
+            // Pure vertical - adjust endpoint for arrow
+            let end_y = if has_arrow {
+                if y2 > y1 { y2.saturating_sub(1) } else { y2 + 1 }
+            } else {
+                y2
+            };
+            self.draw_vertical_line(canvas, x1, y1, end_y, &chars);
+            if has_arrow {
+                let arrow = if y2 > y1 { chars.arrow_down } else { chars.arrow_up };
+                canvas.set_char(x1, end_y, arrow);
+            }
+        } else {
+            // Orthogonal routing: horizontal first, then vertical
+            let mid_y = y1;
+            let turn_x = x2;
 
-            // Place arrow one step before the target
-            if x2 != x1 {
-                let ax = if x2 > x1 { x2 - 1 } else { x2 + 1 };
-                canvas.set_char(ax, y2, arrow);
-            } else if y2 != y1 {
-                let ay = if y2 > y1 { y2 - 1 } else { y2 + 1 };
-                canvas.set_char(x2, ay, arrow);
+            // Horizontal segment (full length to turn)
+            self.draw_horizontal_line(canvas, mid_y, x1, turn_x, &chars);
+
+            // Corner at turn point
+            let corner = if x2 > x1 {
+                if y2 > y1 { '┐' } else { '┘' }
+            } else {
+                if y2 > y1 { '┌' } else { '└' }
+            };
+            canvas.set_char(turn_x, mid_y, corner);
+
+            // Vertical segment - adjust endpoint for arrow
+            let end_y = if has_arrow {
+                if y2 > y1 { y2.saturating_sub(1) } else { y2 + 1 }
+            } else {
+                y2
+            };
+            self.draw_vertical_line(canvas, turn_x, mid_y, end_y, &chars);
+            if has_arrow {
+                let arrow = if y2 > y1 { chars.arrow_down } else { chars.arrow_up };
+                canvas.set_char(turn_x, end_y, arrow);
             }
         }
+    }
+
+    fn draw_horizontal_line(
+        &self,
+        canvas: &mut AsciiCanvas,
+        y: usize,
+        x1: usize,
+        x2: usize,
+        chars: &EdgeChars,
+    ) {
+        let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
+        let going_right = x2 > x1;
+
+        for x in start..=end {
+            let existing = canvas.get_char(x, y);
+            let is_start = x == start;
+            let is_end = x == end;
+
+            let new_char = match existing {
+                ' ' => chars.horizontal,
+                '│' | '┆' | '║' => {
+                    // T-junction or crossing
+                    if is_start {
+                        if going_right { '├' } else { '┤' }
+                    } else if is_end {
+                        if going_right { '┤' } else { '├' }
+                    } else {
+                        '┼' // True crossing in the middle
+                    }
+                }
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' => existing, // Keep existing junctions
+                _ => chars.horizontal,
+            };
+            canvas.set_char(x, y, new_char);
+        }
+    }
+
+    fn draw_vertical_line(
+        &self,
+        canvas: &mut AsciiCanvas,
+        x: usize,
+        y1: usize,
+        y2: usize,
+        chars: &EdgeChars,
+    ) {
+        let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
+        let going_down = y2 > y1;
+
+        for y in start..=end {
+            let existing = canvas.get_char(x, y);
+            let is_start = y == start;
+            let is_end = y == end;
+
+            let new_char = match existing {
+                ' ' => chars.vertical,
+                '─' | '┄' | '═' => {
+                    // T-junction or crossing
+                    if is_start {
+                        if going_down { '┬' } else { '┴' }
+                    } else if is_end {
+                        if going_down { '┴' } else { '┬' }
+                    } else {
+                        '┼' // True crossing in the middle
+                    }
+                }
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' => existing, // Keep existing junctions
+                _ => chars.vertical,
+            };
+            canvas.set_char(x, y, new_char);
+        }
+    }
+
+}
+
+/// Edge drawing characters
+struct EdgeChars {
+    horizontal: char,
+    vertical: char,
+    arrow_right: char,
+    arrow_left: char,
+    arrow_down: char,
+    arrow_up: char,
+    invisible: bool,
+}
+
+impl EdgeChars {
+    fn for_type(edge_type: EdgeType) -> Self {
+        match edge_type {
+            EdgeType::Arrow | EdgeType::Line | EdgeType::OpenArrow | EdgeType::CrossArrow => {
+                Self {
+                    horizontal: '─',
+                    vertical: '│',
+                    arrow_right: '▶',
+                    arrow_left: '◀',
+                    arrow_down: '▼',
+                    arrow_up: '▲',
+                    invisible: false,
+                }
+            }
+            EdgeType::DottedArrow | EdgeType::DottedLine => Self {
+                horizontal: '┄',
+                vertical: '┆',
+                arrow_right: '▷',
+                arrow_left: '◁',
+                arrow_down: '▽',
+                arrow_up: '△',
+                invisible: false,
+            },
+            EdgeType::ThickArrow | EdgeType::ThickLine => Self {
+                horizontal: '═',
+                vertical: '║',
+                arrow_right: '▶',
+                arrow_left: '◀',
+                arrow_down: '▼',
+                arrow_up: '▲',
+                invisible: false,
+            },
+            EdgeType::Invisible => Self {
+                horizontal: ' ',
+                vertical: ' ',
+                arrow_right: ' ',
+                arrow_left: ' ',
+                arrow_down: ' ',
+                arrow_up: ' ',
+                invisible: true,
+            },
+        }
+    }
+
+    fn is_invisible(&self) -> bool {
+        self.invisible
     }
 }
 
