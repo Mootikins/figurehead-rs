@@ -1,0 +1,106 @@
+//! Snapshot tests for ASCII rendering output
+//!
+//! These tests compare rendered output against golden files in tests/fixtures/.
+//! To update fixtures after fixing rendering, run the tests with UPDATE_FIXTURES=1
+
+use figurehead::render;
+use std::fs;
+use std::path::Path;
+
+/// Compare rendered output to a fixture file
+fn assert_fixture(name: &str, input: &str) {
+    let output = render(input).expect("render should succeed");
+    let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(format!("{}.txt", name));
+
+    if std::env::var("UPDATE_FIXTURES").is_ok() {
+        fs::write(&fixture_path, &output).expect("failed to write fixture");
+        println!("Updated fixture: {}", fixture_path.display());
+        return;
+    }
+
+    let expected = fs::read_to_string(&fixture_path).unwrap_or_else(|_| {
+        panic!(
+            "Fixture not found: {}\nRun with UPDATE_FIXTURES=1 to create it.\n\nActual output:\n{}",
+            fixture_path.display(),
+            output
+        )
+    });
+
+    if output != expected {
+        panic!(
+            "Snapshot mismatch for '{}'!\n\n=== Expected ===\n{}\n=== Actual ===\n{}\n=== Diff ===\nRun with UPDATE_FIXTURES=1 to update.",
+            name, expected, output
+        );
+    }
+}
+
+#[test]
+fn test_simple_chain_lr() {
+    assert_fixture("simple_chain_lr", "graph LR; A-->B-->C");
+}
+
+#[test]
+fn test_simple_chain_td() {
+    assert_fixture("simple_chain_td", "graph TD; A-->B-->C");
+}
+
+#[test]
+fn test_diamond_decision_td() {
+    assert_fixture(
+        "diamond_decision_td",
+        "graph TD; A[Start]-->B{Decision}-->C[End]",
+    );
+}
+
+#[test]
+fn test_diamond_decision_lr() {
+    assert_fixture(
+        "diamond_decision_lr",
+        "graph LR; A[Start]-->B{Decision}-->C[End]",
+    );
+}
+
+#[test]
+fn test_complex_flowchart() {
+    assert_fixture(
+        "complex_flowchart",
+        r#"graph LR
+            A[Start] --> B{Decision}
+            B -->|Yes| C[Process 1]
+            B -->|No| D[Process 2]
+            C --> E[End]
+            D --> E"#,
+    );
+}
+
+#[test]
+fn test_all_shapes() {
+    assert_fixture(
+        "all_shapes",
+        r#"graph TD
+            A[Rectangle]
+            B(Rounded)
+            C{Diamond}
+            D((Circle))
+            E[[Subroutine]]
+            F{{Hexagon}}"#,
+    );
+}
+
+#[test]
+fn test_labeled_edges() {
+    assert_fixture(
+        "labeled_edges",
+        "graph TD; A-->|yes|B; A-->|no|C",
+    );
+}
+
+#[test]
+fn test_long_labels() {
+    assert_fixture(
+        "long_labels",
+        "graph LR; A[This is a very long label]-->B[Another long label here]",
+    );
+}
