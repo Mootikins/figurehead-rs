@@ -43,8 +43,8 @@ pub use core::*;
 /// Prelude module for convenient imports
 pub mod prelude {
     pub use crate::core::{
-        Database, Detector, Direction, EdgeData, EdgeType, LayoutAlgorithm, NodeData, NodeShape,
-        Parser, Renderer,
+        CharacterSet, Database, Detector, Direction, EdgeData, EdgeType, LayoutAlgorithm,
+        NodeData, NodeShape, Parser, Renderer,
     };
     pub use crate::plugins::flowchart::{
         FlowchartDatabase, FlowchartDetector, FlowchartLayoutAlgorithm, FlowchartParser,
@@ -55,6 +55,7 @@ pub mod prelude {
 /// Render Mermaid flowchart syntax to ASCII art
 ///
 /// This is the simplest way to convert a Mermaid diagram to ASCII.
+/// Uses the default Unicode character set for best appearance.
 ///
 /// # Arguments
 /// * `input` - Mermaid flowchart syntax (e.g., "graph LR; A-->B")
@@ -72,6 +73,32 @@ pub mod prelude {
 /// assert!(ascii.contains("End"));
 /// ```
 pub fn render(input: &str) -> anyhow::Result<String> {
+    render_with_style(input, CharacterSet::default())
+}
+
+/// Render Mermaid flowchart syntax with a specific character set
+///
+/// Allows control over which characters are used for rendering.
+///
+/// # Arguments
+/// * `input` - Mermaid flowchart syntax (e.g., "graph LR; A-->B")
+/// * `style` - The character set to use for rendering
+///
+/// # Returns
+/// * `Ok(String)` - The ASCII art representation
+/// * `Err` - If parsing or rendering fails
+///
+/// # Example
+/// ```rust
+/// use figurehead::{render_with_style, CharacterSet};
+///
+/// // Pure ASCII for maximum compatibility
+/// let ascii = render_with_style("graph LR; A-->B", CharacterSet::Ascii).unwrap();
+///
+/// // Compact mode with single-glyph nodes
+/// let compact = render_with_style("graph LR; A-->B", CharacterSet::Compact).unwrap();
+/// ```
+pub fn render_with_style(input: &str, style: CharacterSet) -> anyhow::Result<String> {
     use crate::core::{Parser as _, Renderer as _};
     use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer};
 
@@ -79,7 +106,7 @@ pub fn render(input: &str) -> anyhow::Result<String> {
     let mut database = FlowchartDatabase::new();
     parser.parse(input, &mut database)?;
 
-    let renderer = FlowchartRenderer::new();
+    let renderer = FlowchartRenderer::with_style(style);
     renderer.render(&database)
 }
 

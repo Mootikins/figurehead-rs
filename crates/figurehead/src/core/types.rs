@@ -5,6 +5,49 @@
 
 use std::fmt;
 
+/// Character set for rendering output
+///
+/// Controls which characters are used for drawing shapes and edges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum CharacterSet {
+    /// Pure ASCII characters only: / \ < > - | +
+    /// Maximum compatibility but limited visual quality
+    Ascii,
+    /// Unicode box-drawing characters: ┌ ┐ └ ┘ ─ │ ╭ ╮
+    /// Good balance of appearance and compatibility
+    #[default]
+    Unicode,
+    /// Unicode with mathematical diagonal symbols: ⟋ ⟍
+    /// Better diamond shapes, requires font support
+    UnicodeMath,
+    /// Single-glyph compact mode: ◇ ○ □
+    /// Minimal output, nodes are single characters
+    Compact,
+}
+
+impl CharacterSet {
+    /// Returns true if this character set uses only ASCII
+    pub fn is_ascii(&self) -> bool {
+        matches!(self, CharacterSet::Ascii)
+    }
+
+    /// Returns true if this is the compact single-glyph mode
+    pub fn is_compact(&self) -> bool {
+        matches!(self, CharacterSet::Compact)
+    }
+}
+
+impl fmt::Display for CharacterSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CharacterSet::Ascii => write!(f, "ascii"),
+            CharacterSet::Unicode => write!(f, "unicode"),
+            CharacterSet::UnicodeMath => write!(f, "unicode-math"),
+            CharacterSet::Compact => write!(f, "compact"),
+        }
+    }
+}
+
 /// Node shapes matching Mermaid.js syntax
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum NodeShape {
@@ -316,5 +359,30 @@ mod tests {
         let labeled = EdgeData::with_label("A", "B", EdgeType::DottedArrow, "Yes");
         assert_eq!(labeled.label, Some("Yes".to_string()));
         assert_eq!(labeled.edge_type, EdgeType::DottedArrow);
+    }
+
+    #[test]
+    fn test_character_set_properties() {
+        assert!(CharacterSet::Ascii.is_ascii());
+        assert!(!CharacterSet::Unicode.is_ascii());
+        assert!(!CharacterSet::UnicodeMath.is_ascii());
+        assert!(!CharacterSet::Compact.is_ascii());
+
+        assert!(CharacterSet::Compact.is_compact());
+        assert!(!CharacterSet::Ascii.is_compact());
+        assert!(!CharacterSet::Unicode.is_compact());
+    }
+
+    #[test]
+    fn test_character_set_default() {
+        assert_eq!(CharacterSet::default(), CharacterSet::Unicode);
+    }
+
+    #[test]
+    fn test_character_set_display() {
+        assert_eq!(CharacterSet::Ascii.to_string(), "ascii");
+        assert_eq!(CharacterSet::Unicode.to_string(), "unicode");
+        assert_eq!(CharacterSet::UnicodeMath.to_string(), "unicode-math");
+        assert_eq!(CharacterSet::Compact.to_string(), "compact");
     }
 }
