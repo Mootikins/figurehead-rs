@@ -9,6 +9,7 @@ use tracing::{debug, info, span, trace, warn, Level};
 
 use crate::core::{Database, Detector, Parser, Renderer};
 use crate::plugins::flowchart::FlowchartDatabase;
+use crate::plugins::gitgraph::GitGraphDatabase;
 
 /// Plugin orchestrator that coordinates the entire pipeline
 ///
@@ -20,6 +21,9 @@ pub struct Orchestrator {
     flowchart_parser: Option<crate::plugins::flowchart::FlowchartParser>,
     flowchart_layout: Option<crate::plugins::flowchart::FlowchartLayoutAlgorithm>,
     ascii_renderer: Option<crate::plugins::flowchart::FlowchartRenderer>,
+    gitgraph_parser: Option<crate::plugins::gitgraph::GitGraphParser>,
+    gitgraph_layout: Option<crate::plugins::gitgraph::GitGraphLayoutAlgorithm>,
+    gitgraph_renderer: Option<crate::plugins::gitgraph::GitGraphRenderer>,
 }
 
 impl Orchestrator {
@@ -30,6 +34,9 @@ impl Orchestrator {
             flowchart_parser: None,
             flowchart_layout: None,
             ascii_renderer: None,
+            gitgraph_parser: None,
+            gitgraph_layout: None,
+            gitgraph_renderer: None,
         }
     }
 
@@ -47,6 +54,29 @@ impl Orchestrator {
             ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_style(
                 style,
             )),
+            gitgraph_parser: None,
+            gitgraph_layout: None,
+            gitgraph_renderer: None,
+        }
+    }
+
+    /// Create a new orchestrator with all plugins (flowchart and gitgraph)
+    pub fn with_all_plugins() -> Self {
+        Self::with_all_plugins_and_style(crate::core::CharacterSet::default())
+    }
+
+    /// Create a new orchestrator with all plugins and a specific renderer style
+    pub fn with_all_plugins_and_style(style: crate::core::CharacterSet) -> Self {
+        Self {
+            detectors: HashMap::new(),
+            flowchart_parser: Some(crate::plugins::flowchart::FlowchartParser::new()),
+            flowchart_layout: Some(crate::plugins::flowchart::FlowchartLayoutAlgorithm::new()),
+            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_style(
+                style,
+            )),
+            gitgraph_parser: Some(crate::plugins::gitgraph::GitGraphParser::new()),
+            gitgraph_layout: Some(crate::plugins::gitgraph::GitGraphLayoutAlgorithm::new()),
+            gitgraph_renderer: Some(crate::plugins::gitgraph::GitGraphRenderer::new()),
         }
     }
 
@@ -103,14 +133,17 @@ impl Orchestrator {
         debug!(diagram_type, "Diagram type detected");
         drop(_detect_enter);
 
-        if diagram_type != "flowchart" {
-            warn!(diagram_type, "Unsupported diagram type");
-            return Err(anyhow::anyhow!(
-                "Only flowchart diagrams are currently supported"
-            ));
+        match diagram_type.as_str() {
+            "flowchart" => self.process_flowchart(input),
+            "gitgraph" => self.process_gitgraph(input),
+            _ => {
+                warn!(diagram_type, "Unsupported diagram type");
+                Err(anyhow::anyhow!(
+                    "Unsupported diagram type: {}",
+                    diagram_type
+                ))
+            }
         }
-
-        self.process_flowchart(input)
     }
 
     /// Process flowchart input directly (skip detection)
@@ -154,6 +187,48 @@ impl Orchestrator {
         info!("Pipeline completed successfully");
 
         // Step 3: Convert canvas to string
+        Ok(canvas)
+    }
+
+    /// Process git graph input directly (skip detection)
+    ///
+    /// Useful when the caller already knows the diagram type.
+    pub fn process_gitgraph(&self, input: &str) -> Result<String> {
+        let gitgraph_span = span!(Level::INFO, "process_gitgraph", input_len = input.len());
+        let _enter = gitgraph_span.enter();
+
+        info!("Processing git graph diagram");
+
+        // Step 1: Parse the input
+        let parse_span = span!(Level::DEBUG, "pipeline_parse");
+        let _parse_enter = parse_span.enter();
+        let parser = self
+            .gitgraph_parser
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No git graph parser available"))?;
+
+        let mut database = GitGraphDatabase::new();
+        parser.parse(input, &mut database)?;
+        debug!(
+            node_count = database.node_count(),
+            edge_count = database.edge_count(),
+            "Parsing completed"
+        );
+        drop(_parse_enter);
+
+        // Step 2: Render the result
+        let render_span = span!(Level::DEBUG, "pipeline_render");
+        let _render_enter = render_span.enter();
+        let renderer = self
+            .gitgraph_renderer
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No git graph renderer available"))?;
+
+        let canvas = renderer.render(&database)?;
+        debug!(output_len = canvas.len(), "Rendering completed");
+        drop(_render_enter);
+
+        info!("Git graph processing completed successfully");
         Ok(canvas)
     }
 }
@@ -362,5 +437,38 @@ mod tests {
 
         // Should still return Ok (parser handles errors gracefully)
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_process_gitgraph() {
+        use crate::plugins::gitgraph::GitGraphDetector;
+        
+        let mut orchestrator = Orchestrator::with_all_plugins();
+        orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+        
+        let input = "gitGraph\n   commit\n   commit\n   commit";
+        let result = orchestrator.process(input);
+        
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(!output.is_empty());
+    }
+
+    #[test]
+    fn test_process_gitgraph_with_branches() {
+        let orchestrator = Orchestrator::with_all_plugins();
+        
+        let input = r#"gitGraph
+   commit
+   branch develop
+   checkout develop
+   commit
+   checkout main
+   merge develop"#;
+        let result = orchestrator.process_gitgraph(input);
+        
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(!output.is_empty());
     }
 }

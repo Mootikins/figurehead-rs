@@ -136,6 +136,7 @@ mod tests {
    checkout develop
    commit"#;
         parser.parse(input, &mut database).unwrap();
-        assert_eq!(database.node_count(), 2);
+        // Should have 2 commits + 1 branch node = 3 nodes
+        assert_eq!(database.node_count(), 3);
     }
 }

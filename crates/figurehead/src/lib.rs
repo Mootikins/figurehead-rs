@@ -76,7 +76,16 @@ pub mod prelude {
 /// assert!(ascii.contains("End"));
 /// ```
 pub fn render(input: &str) -> anyhow::Result<String> {
-    render_with_style(input, CharacterSet::default())
+    use crate::plugins::orchestrator::Orchestrator;
+    use crate::plugins::{FlowchartDetector, GitGraphDetector};
+    
+    let mut orchestrator = Orchestrator::with_all_plugins();
+    
+    // Register detectors
+    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+    
+    orchestrator.process(input)
 }
 
 /// Render Mermaid flowchart syntax with a specific character set
