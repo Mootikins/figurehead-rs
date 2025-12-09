@@ -38,6 +38,9 @@
 pub mod core;
 pub mod plugins;
 
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
 pub use core::*;
 
 /// Prelude module for convenient imports

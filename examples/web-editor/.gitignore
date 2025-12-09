@@ -1,0 +1,4 @@
+pkg/
+*.wasm
+*.js
+*.d.ts

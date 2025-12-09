@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
+use tracing::{debug, trace};
 
 use crate::core::{Database, Direction, EdgeData, EdgeType, NodeData, NodeShape};
 
@@ -102,6 +103,7 @@ impl FlowchartDatabase {
     /// Topological sort using Kahn's algorithm
     /// Returns nodes in topological order, or all nodes if graph has cycles
     pub fn topological_sort(&self) -> Vec<&str> {
+        trace!(node_count = self.node_count(), edge_count = self.edge_count(), "Starting topological sort");
         let mut in_degree: HashMap<&str, usize> = HashMap::new();
         let mut adjacency: HashMap<&str, Vec<&str>> = HashMap::new();
 
@@ -152,6 +154,7 @@ impl FlowchartDatabase {
         // If we didn't get all nodes, there's a cycle
         // Return what we have plus remaining nodes
         if result.len() < self.node_order.len() {
+            debug!(sorted_count = result.len(), total_nodes = self.node_order.len(), "Cycle detected in graph");
             for id in &self.node_order {
                 if !result.contains(&id.as_str()) {
                     result.push(id.as_str());
@@ -159,6 +162,7 @@ impl FlowchartDatabase {
             }
         }
 
+        debug!(sorted_count = result.len(), "Topological sort completed");
         result
     }
 
@@ -176,15 +180,25 @@ impl Database for FlowchartDatabase {
     type Edge = EdgeData;
 
     fn add_node(&mut self, node: NodeData) -> Result<()> {
+        trace!(node_id = %node.id, node_label = %node.label, node_shape = ?node.shape, "Adding node to database");
         if !self.nodes.contains_key(&node.id) {
             self.node_order.push(node.id.clone());
         }
         self.nodes.insert(node.id.clone(), node);
+        debug!(node_count = self.node_count(), "Node added");
         Ok(())
     }
 
     fn add_edge(&mut self, edge: EdgeData) -> Result<()> {
+        trace!(
+            edge_from = %edge.from,
+            edge_to = %edge.to,
+            edge_type = ?edge.edge_type,
+            edge_label = ?edge.label,
+            "Adding edge to database"
+        );
         self.edges.push(edge);
+        debug!(edge_count = self.edge_count(), "Edge added");
         Ok(())
     }
 

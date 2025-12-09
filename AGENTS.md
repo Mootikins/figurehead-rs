@@ -129,6 +129,70 @@ Input → Detector → Parser → Database → Layout → Renderer → Output
 - `tests/integration/`: End-to-end tests
 - Use descriptive test names
 
+## Logging Guidelines
+
+### Adding Tracing to New Plugins
+
+When implementing a new diagram type plugin, add structured logging using the `tracing` crate:
+
+1. **Import tracing macros**:
+   ```rust
+   use tracing::{debug, info, span, trace, warn, Level};
+   ```
+
+2. **Add spans to main operations**:
+   ```rust
+   fn parse(&self, input: &str, database: &mut Database) -> Result<()> {
+       let parse_span = span!(Level::INFO, "parse_diagram", input_len = input.len());
+       let _enter = parse_span.enter(); // Automatically tracks duration
+       
+       trace!("Starting parsing");
+       // ... parsing logic ...
+       info!("Parsing completed");
+       Ok(())
+   }
+   ```
+
+3. **Add structured fields** for better filtering:
+   ```rust
+   trace!(
+       node_id = %node.id,
+       node_shape = ?node.shape,
+       node_label = %node.label,
+       "Processing node"
+   );
+   ```
+
+4. **Use appropriate log levels**:
+   - `trace`: Very detailed, for deep debugging
+   - `debug`: Detailed information for development
+   - `info`: General progress messages
+   - `warn`: Warnings about recoverable issues
+   - `error`: Error conditions
+
+5. **Add spans for major stages**:
+   - Detection: Diagram type identification
+   - Parsing: Markup parsing stages
+   - Layout: Positioning and routing
+   - Rendering: Output generation
+
+6. **Include metrics** in log events:
+   - Node/edge counts
+   - Canvas dimensions
+   - Processing times (automatic with spans)
+   - Memory usage indicators
+
+### Log Filtering
+
+Users can filter logs by component:
+```bash
+# Show only parser logs
+RUST_LOG="figurehead::plugins::yourplugin::parser=debug" figurehead convert input.mmd
+
+# Show all logs at info, but layout at trace
+RUST_LOG="info,figurehead::plugins::yourplugin::layout=trace" figurehead convert input.mmd
+```
+
 ## WASM Considerations
 
 The core library should be WASM-compatible:
@@ -165,6 +229,8 @@ The core library should be WASM-compatible:
 - **anyhow**: Error handling (WASM-compatible)
 - **thiserror**: Custom error types (WASM-compatible)
 - **unicode-width**: Text width (WASM-compatible)
+- **tracing**: Structured logging (WASM-compatible)
+- **tracing-subscriber**: Log formatting and filtering (WASM-compatible with features)
 
 ### CLI Dependencies
 - **clap**: Command-line interface (NOT WASM-compatible)

@@ -8,6 +8,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
+use figurehead::core::logging::init_logging;
 use figurehead::plugins::flowchart::FlowchartDetector;
 use figurehead::plugins::Orchestrator;
 use figurehead::CharacterSet;
@@ -25,6 +26,54 @@ pub struct Cli {
     /// Enable verbose output
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Set log level (trace|debug|info|warn|error)
+    #[arg(long, value_enum, default_value_t = LogLevel::Info)]
+    pub log_level: LogLevel,
+
+    /// Set log format (compact|pretty|json)
+    #[arg(long, value_enum, default_value_t = LogFormat::Compact)]
+    pub log_format: LogFormat,
+}
+
+/// Log level options
+#[derive(Copy, Clone, Debug, clap::ValueEnum, PartialEq, Eq)]
+pub enum LogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl LogLevel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LogLevel::Trace => "trace",
+            LogLevel::Debug => "debug",
+            LogLevel::Info => "info",
+            LogLevel::Warn => "warn",
+            LogLevel::Error => "error",
+        }
+    }
+}
+
+/// Log format options
+#[derive(Copy, Clone, Debug, clap::ValueEnum, PartialEq, Eq)]
+pub enum LogFormat {
+    Compact,
+    Pretty,
+    Json,
+}
+
+impl LogFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LogFormat::Compact => "compact",
+            LogFormat::Pretty => "pretty",
+            LogFormat::Json => "json",
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -122,6 +171,24 @@ impl FigureheadApp {
 
     /// Run the application with the given CLI arguments
     pub fn run(&mut self, cli: Cli) -> Result<()> {
+        // Initialize logging with CLI flags (environment variables take precedence)
+        let log_level_str = std::env::var("FIGUREHEAD_LOG_LEVEL")
+            .ok()
+            .or_else(|| std::env::var("RUST_LOG").ok())
+            .or_else(|| Some(cli.log_level.as_str().to_string()));
+
+        let log_format_str = std::env::var("FIGUREHEAD_LOG_FORMAT")
+            .ok()
+            .or_else(|| Some(cli.log_format.as_str().to_string()));
+
+        // Reinitialize logging with CLI/environment settings
+        if let Err(e) = init_logging(
+            log_level_str.as_deref(),
+            log_format_str.as_deref(),
+        ) {
+            eprintln!("Warning: Failed to initialize logging: {}", e);
+        }
+
         if cli.verbose {
             eprintln!("Figurehead v{}", env!("CARGO_PKG_VERSION"));
         }

@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
+use tracing::{debug, info, span, trace, Level};
 use unicode_width::UnicodeWidthStr;
 
 use super::FlowchartDatabase;
@@ -105,11 +106,25 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
     type Output = FlowchartLayoutResult;
 
     fn layout(&self, database: &FlowchartDatabase) -> Result<Self::Output> {
+        let layout_span = span!(
+            Level::INFO,
+            "layout_flowchart",
+            node_count = database.node_count(),
+            edge_count = database.edge_count(),
+            direction = ?database.direction()
+        );
+        let _enter = layout_span.enter(); // Enter span to track duration
+
+        trace!("Starting flowchart layout");
+
         let direction = database.direction();
 
         // Collect nodes and calculate sizes
+        let size_span = span!(Level::DEBUG, "calculate_node_sizes");
+        let _size_enter = size_span.enter();
         let nodes: Vec<_> = database.nodes().collect();
         if nodes.is_empty() {
+            debug!("Empty database, returning empty layout");
             return Ok(FlowchartLayoutResult {
                 nodes: Vec::new(),
                 edges: Vec::new(),
@@ -123,8 +138,12 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             let size = self.calculate_node_size(&node.label, node.shape);
             node_sizes.insert(&node.id, size);
         }
+        debug!(node_count = nodes.len(), "Calculated node sizes");
+        drop(_size_enter);
 
         // Assign layers using topological sort
+        let layer_span = span!(Level::DEBUG, "assign_layers");
+        let _layer_enter = layer_span.enter();
         let sorted = database.topological_sort();
         let mut layers: HashMap<&str, usize> = HashMap::new();
 
@@ -155,8 +174,12 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         for layer in &mut layer_nodes {
             layer.sort();
         }
+        debug!(max_layer, layer_count = layer_nodes.len(), "Assigned nodes to layers");
+        drop(_layer_enter);
 
         // Calculate positions based on direction
+        let position_span = span!(Level::DEBUG, "calculate_positions", direction = ?direction);
+        let _position_enter = position_span.enter();
         let mut positioned_nodes = Vec::new();
         let mut max_width = 0;
         let mut max_height = 0;
@@ -275,7 +298,17 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             }
         }
 
+        debug!(
+            positioned_node_count = positioned_nodes.len(),
+            max_width,
+            max_height,
+            "Node positioning completed"
+        );
+        drop(_position_enter);
+
         // Route edges (simple straight-line for now)
+        let edge_span = span!(Level::DEBUG, "route_edges");
+        let _edge_enter = edge_span.enter();
         let mut positioned_edges = Vec::new();
         let node_positions: HashMap<&str, &PositionedNode> = positioned_nodes
             .iter()
@@ -321,12 +354,24 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 });
             }
         }
+        debug!(positioned_edge_count = positioned_edges.len(), "Edge routing completed");
+        drop(_edge_enter);
+
+        let final_width = max_width + self.config.padding;
+        let final_height = max_height + self.config.padding;
+        info!(
+            node_count = positioned_nodes.len(),
+            edge_count = positioned_edges.len(),
+            width = final_width,
+            height = final_height,
+            "Layout completed"
+        );
 
         Ok(FlowchartLayoutResult {
             nodes: positioned_nodes,
             edges: positioned_edges,
-            width: max_width + self.config.padding,
-            height: max_height + self.config.padding,
+            width: final_width,
+            height: final_height,
         })
     }
 
@@ -455,5 +500,287 @@ mod tests {
         assert_eq!(result.edges[0].from_id, "A");
         assert_eq!(result.edges[0].to_id, "B");
         assert!(result.edges[0].waypoints.len() >= 2);
+    }
+
+    #[test]
+    fn test_bottom_up_layout() {
+        let mut db = FlowchartDatabase::with_direction(Direction::BottomUp);
+
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "Process").unwrap();
+        db.add_simple_node("C", "End").unwrap();
+        db.add_simple_edge("A", "B").unwrap();
+        db.add_simple_edge("B", "C").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        let node_by_id: HashMap<_, _> = result
+            .nodes
+            .iter()
+            .map(|n| (n.id.as_str(), n))
+            .collect();
+
+        // BT layout: y should decrease bottom to top (higher y = lower in diagram)
+        assert!(node_by_id["A"].y > node_by_id["B"].y);
+        assert!(node_by_id["B"].y > node_by_id["C"].y);
+    }
+
+    #[test]
+    fn test_right_left_layout() {
+        let mut db = FlowchartDatabase::with_direction(Direction::RightLeft);
+
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "Process").unwrap();
+        db.add_simple_node("C", "End").unwrap();
+        db.add_simple_edge("A", "B").unwrap();
+        db.add_simple_edge("B", "C").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        let node_by_id: HashMap<_, _> = result
+            .nodes
+            .iter()
+            .map(|n| (n.id.as_str(), n))
+            .collect();
+
+        // RL layout: x should decrease right to left
+        assert!(node_by_id["A"].x > node_by_id["B"].x);
+        assert!(node_by_id["B"].x > node_by_id["C"].x);
+    }
+
+    #[test]
+    fn test_single_node_layout() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_simple_node("A", "Single").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0].id, "A");
+        assert!(result.width > 0);
+        assert!(result.height > 0);
+    }
+
+    #[test]
+    fn test_disconnected_nodes() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_simple_node("A", "Node A").unwrap();
+        db.add_simple_node("B", "Node B").unwrap();
+        db.add_simple_node("C", "Node C").unwrap();
+        // No edges - all disconnected
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 3);
+        assert_eq!(result.edges.len(), 0);
+        // All nodes should be in layer 0 (no predecessors)
+        // They should be positioned horizontally
+    }
+
+    #[test]
+    fn test_self_loop() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_simple_node("A", "Loop").unwrap();
+        db.add_simple_edge("A", "A").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.edges.len(), 1);
+        assert_eq!(result.edges[0].from_id, "A");
+        assert_eq!(result.edges[0].to_id, "A");
+    }
+
+    #[test]
+    fn test_multiple_edges_between_same_nodes() {
+        let mut db = FlowchartDatabase::with_direction(Direction::LeftRight);
+
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "End").unwrap();
+        db.add_simple_edge("A", "B").unwrap();
+        db.add_labeled_edge("A", "B", crate::core::EdgeType::DottedArrow, "Alternative").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 2);
+        // Both edges should be present
+        assert_eq!(result.edges.len(), 2);
+    }
+
+    #[test]
+    fn test_complex_branching_pattern() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        // A -> B, C, D (three branches)
+        // B -> E
+        // C -> E
+        // D -> E
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "Branch 1").unwrap();
+        db.add_simple_node("C", "Branch 2").unwrap();
+        db.add_simple_node("D", "Branch 3").unwrap();
+        db.add_simple_node("E", "End").unwrap();
+
+        db.add_simple_edge("A", "B").unwrap();
+        db.add_simple_edge("A", "C").unwrap();
+        db.add_simple_edge("A", "D").unwrap();
+        db.add_simple_edge("B", "E").unwrap();
+        db.add_simple_edge("C", "E").unwrap();
+        db.add_simple_edge("D", "E").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 5);
+        assert_eq!(result.edges.len(), 6);
+
+        // B, C, D should be in the same layer (layer 1)
+        let layer_b = result.nodes.iter().position(|n| n.id == "B").map(|i| result.nodes[i].y).unwrap();
+        let layer_c = result.nodes.iter().position(|n| n.id == "C").map(|i| result.nodes[i].y).unwrap();
+        let layer_d = result.nodes.iter().position(|n| n.id == "D").map(|i| result.nodes[i].y).unwrap();
+        assert_eq!(layer_b, layer_c);
+        assert_eq!(layer_c, layer_d);
+    }
+
+    #[test]
+    fn test_circular_dependency_handling() {
+        let mut db = FlowchartDatabase::with_direction(Direction::LeftRight);
+
+        // A -> B -> C -> A (cycle)
+        db.add_simple_node("A", "A").unwrap();
+        db.add_simple_node("B", "B").unwrap();
+        db.add_simple_node("C", "C").unwrap();
+
+        db.add_simple_edge("A", "B").unwrap();
+        db.add_simple_edge("B", "C").unwrap();
+        db.add_simple_edge("C", "A").unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        // Should handle cycles gracefully (topological sort may break ties arbitrarily)
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 3);
+        assert_eq!(result.edges.len(), 3);
+        // All nodes should be positioned
+        assert!(result.width > 0);
+        assert!(result.height > 0);
+    }
+
+    #[test]
+    fn test_node_shapes_affect_sizing() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_shaped_node("A", "Short", crate::core::NodeShape::Rectangle).unwrap();
+        db.add_shaped_node("B", "This is a very long label", crate::core::NodeShape::Rectangle).unwrap();
+        db.add_shaped_node("C", "Diamond", crate::core::NodeShape::Diamond).unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        let node_by_id: HashMap<_, _> = result
+            .nodes
+            .iter()
+            .map(|n| (n.id.as_str(), n))
+            .collect();
+
+        // Long label should result in wider node
+        assert!(node_by_id["B"].width >= node_by_id["A"].width);
+
+        // Diamond should have extra height
+        assert!(node_by_id["C"].height >= node_by_id["A"].height);
+    }
+
+    #[test]
+    fn test_all_node_shapes_in_layout() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_shaped_node("R", "Rect", crate::core::NodeShape::Rectangle).unwrap();
+        db.add_shaped_node("RR", "Rounded", crate::core::NodeShape::RoundedRect).unwrap();
+        db.add_shaped_node("D", "Diamond", crate::core::NodeShape::Diamond).unwrap();
+        db.add_shaped_node("C", "Circle", crate::core::NodeShape::Circle).unwrap();
+        db.add_shaped_node("S", "Subroutine", crate::core::NodeShape::Subroutine).unwrap();
+        db.add_shaped_node("H", "Hexagon", crate::core::NodeShape::Hexagon).unwrap();
+        db.add_shaped_node("Cy", "Cylinder", crate::core::NodeShape::Cylinder).unwrap();
+        db.add_shaped_node("P", "Parallelogram", crate::core::NodeShape::Parallelogram).unwrap();
+        db.add_shaped_node("T", "Trapezoid", crate::core::NodeShape::Trapezoid).unwrap();
+        db.add_shaped_node("A", "Asymmetric", crate::core::NodeShape::Asymmetric).unwrap();
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.nodes.len(), 10);
+        // All nodes should have valid dimensions
+        for node in &result.nodes {
+            assert!(node.width > 0);
+            assert!(node.height > 0);
+        }
+    }
+
+    #[test]
+    fn test_edge_routing_for_all_directions() {
+        let directions = [
+            Direction::TopDown,
+            Direction::BottomUp,
+            Direction::LeftRight,
+            Direction::RightLeft,
+        ];
+
+        for direction in directions {
+            let mut db = FlowchartDatabase::with_direction(direction);
+            db.add_simple_node("A", "Start").unwrap();
+            db.add_simple_node("B", "End").unwrap();
+            db.add_simple_edge("A", "B").unwrap();
+
+            let layout = FlowchartLayoutAlgorithm::new();
+            let result = layout.layout(&db).unwrap();
+
+            assert_eq!(result.edges.len(), 1);
+            let edge = &result.edges[0];
+            assert!(edge.waypoints.len() >= 2);
+            // Waypoints should connect from and to nodes
+            let from_node = result.nodes.iter().find(|n| n.id == edge.from_id).unwrap();
+            let to_node = result.nodes.iter().find(|n| n.id == edge.to_id).unwrap();
+            
+            // First waypoint should be near from_node, last near to_node
+            let (first_x, first_y) = edge.waypoints[0];
+            let (last_x, last_y) = edge.waypoints[edge.waypoints.len() - 1];
+            
+            // Check that waypoints are positioned correctly based on direction
+            match direction {
+                Direction::TopDown => {
+                    // First waypoint should be at bottom of from_node
+                    assert!(first_y >= from_node.y);
+                    // Last waypoint should be at top of to_node
+                    assert!(last_y <= to_node.y + to_node.height);
+                }
+                Direction::BottomUp => {
+                    // First waypoint should be at top of from_node
+                    assert!(first_y <= from_node.y + from_node.height);
+                    // Last waypoint should be at bottom of to_node
+                    assert!(last_y >= to_node.y);
+                }
+                Direction::LeftRight => {
+                    // First waypoint should be at right of from_node
+                    assert!(first_x >= from_node.x);
+                    // Last waypoint should be at left of to_node
+                    assert!(last_x <= to_node.x + to_node.width);
+                }
+                Direction::RightLeft => {
+                    // First waypoint should be at left of from_node
+                    assert!(first_x <= from_node.x + from_node.width);
+                    // Last waypoint should be at right of to_node
+                    assert!(last_x >= to_node.x);
+                }
+            }
+        }
     }
 }

@@ -7,6 +7,7 @@ use super::chumsky_parser::{ChumskyFlowchartParser, NodeRef, Statement};
 use super::FlowchartDatabase;
 use crate::core::{Database, EdgeData, NodeData, Parser};
 use anyhow::Result;
+use tracing::{debug, error, info, span, trace, warn, Level};
 
 const CONNECTORS: [&str; 6] = ["-->", "==>", "---", "-.-", "-.->", "~~~"];
 
@@ -27,35 +28,68 @@ impl Default for FlowchartParser {
 
 impl Parser<FlowchartDatabase> for FlowchartParser {
     fn parse(&self, input: &str, database: &mut FlowchartDatabase) -> Result<()> {
+        let parse_span = span!(Level::INFO, "parse_flowchart", input_len = input.len());
+        let _enter = parse_span.enter(); // Enter span to track duration
+
+        trace!("Starting flowchart parsing");
+
         let chumsky = ChumskyFlowchartParser::new();
 
         // First, try to extract the direction from the header
+        let direction_span = span!(Level::DEBUG, "parse_direction");
+        let _direction_enter = direction_span.enter();
         for line in input.lines() {
             let trimmed = line.trim();
             if let Some(direction) = chumsky.parse_header(trimmed) {
                 database.set_direction(direction);
+                debug!(direction = ?direction, "Parsed diagram direction");
                 break;
             }
         }
+        drop(_direction_enter);
 
         let mut skipped_statements = Vec::new();
+        let mut node_count = 0;
+        let mut edge_count = 0;
 
+        // Parse statements
+        let statements_span = span!(Level::DEBUG, "parse_statements");
+        let _statements_enter = statements_span.enter();
         for statement_text in extract_statements(input) {
             match chumsky.parse_statement(&statement_text) {
                 Ok(statement) => {
-                    apply_statement(&statement, database)?;
+                    trace!(statement = ?statement, "Parsing statement");
+                    match &statement {
+                        Statement::Node(_) => node_count += 1,
+                        Statement::Edge(_) => edge_count += 1,
+                        _ => {}
+                    }
+                    if let Err(e) = apply_statement(&statement, database) {
+                        error!(error = %e, statement = ?statement, "Failed to apply statement");
+                        return Err(e);
+                    }
                 }
-                Err(_) => skipped_statements.push(statement_text),
+                Err(e) => {
+                    warn!(error = %e, statement = %statement_text, "Failed to parse statement");
+                    skipped_statements.push(statement_text);
+                }
             }
         }
+        drop(_statements_enter);
 
         if !skipped_statements.is_empty() {
-            eprintln!(
-                "FlowchartParser skipped {} invalid statement(s): {:?}",
-                skipped_statements.len(),
-                skipped_statements,
+            warn!(
+                skipped_count = skipped_statements.len(),
+                skipped_statements = ?skipped_statements,
+                "Skipped invalid statements"
             );
         }
+
+        info!(
+            node_count,
+            edge_count,
+            "Parsing completed successfully"
+        );
 
         Ok(())
     }
@@ -404,5 +438,241 @@ mod tests {
 
         assert_eq!(database.edge_count(), 2);
         assert_eq!(database.node_count(), 3);
+    }
+
+    #[test]
+    fn test_parser_handles_comments() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            %% This is a comment
+            A --> B
+            %% Another comment
+            B --> C"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.edge_count(), 2);
+        assert_eq!(database.node_count(), 3);
+    }
+
+    #[test]
+    fn test_parser_handles_empty_lines() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+
+            A --> B
+
+            B --> C
+
+        "#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.edge_count(), 2);
+        assert_eq!(database.node_count(), 3);
+    }
+
+    #[test]
+    fn test_parser_handles_all_edge_types() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A --> B
+            B ==> C
+            C --- D
+            D -.- E
+            E -.-> F
+            F ~~~ G"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.edge_count(), 6);
+        
+        let edges: Vec<_> = database.edges().collect();
+        assert_eq!(edges[0].edge_type, EdgeType::Arrow);
+        assert_eq!(edges[1].edge_type, EdgeType::ThickArrow);
+        assert_eq!(edges[2].edge_type, EdgeType::Line);
+        assert_eq!(edges[3].edge_type, EdgeType::DottedLine);
+        assert_eq!(edges[4].edge_type, EdgeType::DottedArrow);
+        assert_eq!(edges[5].edge_type, EdgeType::Invisible);
+    }
+
+    #[test]
+    fn test_parser_handles_inline_labels() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A --|Label1|--> B
+            B --|Label2|--- C"#;
+
+        parser.parse(input, &mut database).unwrap();
+        let edges: Vec<_> = database.edges().collect();
+        assert_eq!(edges[0].label, Some("Label1".to_string()));
+        assert_eq!(edges[1].label, Some("Label2".to_string()));
+    }
+
+    #[test]
+    fn test_parser_handles_node_declarations_without_edges() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A[Start]
+            B[Process]
+            C[End]
+            A --> B
+            B --> C"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.node_count(), 3);
+        assert_eq!(database.edge_count(), 2);
+    }
+
+    #[test]
+    fn test_parser_handles_mixed_node_shapes() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A[Rectangle]
+            B(Rounded)
+            C{Diamond}
+            D((Circle))
+            E[[Subroutine]]
+            F{{Hexagon}}
+            G[(Cylinder)]
+            H[/Parallelogram/]
+            I[/Trapezoid\]
+            J>Asymmetric]"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.node_count(), 10);
+        
+        assert_eq!(database.get_node("A").unwrap().shape, NodeShape::Rectangle);
+        assert_eq!(database.get_node("B").unwrap().shape, NodeShape::RoundedRect);
+        assert_eq!(database.get_node("C").unwrap().shape, NodeShape::Diamond);
+        assert_eq!(database.get_node("D").unwrap().shape, NodeShape::Circle);
+        assert_eq!(database.get_node("E").unwrap().shape, NodeShape::Subroutine);
+        assert_eq!(database.get_node("F").unwrap().shape, NodeShape::Hexagon);
+        assert_eq!(database.get_node("G").unwrap().shape, NodeShape::Cylinder);
+        assert_eq!(database.get_node("H").unwrap().shape, NodeShape::Parallelogram);
+        assert_eq!(database.get_node("I").unwrap().shape, NodeShape::Trapezoid);
+        assert_eq!(database.get_node("J").unwrap().shape, NodeShape::Asymmetric);
+    }
+
+    #[test]
+    fn test_parser_handles_flowchart_keyword() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"flowchart TD
+            A --> B"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.direction(), Direction::TopDown);
+        assert_eq!(database.edge_count(), 1);
+    }
+
+    #[test]
+    fn test_parser_handles_all_directions() {
+        let parser = FlowchartParser::new();
+
+        let directions = [
+            ("graph TD", Direction::TopDown),
+            ("graph TB", Direction::TopDown),
+            ("graph BT", Direction::BottomUp),
+            ("graph LR", Direction::LeftRight),
+            ("graph RL", Direction::RightLeft),
+            ("flowchart TD", Direction::TopDown),
+            ("flowchart LR", Direction::LeftRight),
+        ];
+
+        for (header, expected_dir) in directions {
+            let mut database = FlowchartDatabase::new();
+            let input = format!("{}\n    A --> B", header);
+            parser.parse(&input, &mut database).unwrap();
+            assert_eq!(database.direction(), expected_dir, "Failed for header: {}", header);
+        }
+    }
+
+    #[test]
+    fn test_parser_handles_malformed_statements_gracefully() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A --> B
+            This is not valid syntax
+            C --> D"#;
+
+        // Should parse valid statements and skip invalid ones
+        let result = parser.parse(input, &mut database);
+        // Parser should succeed but may log warnings about skipped statements
+        assert!(result.is_ok() || result.is_err());
+        // At minimum, valid edges should be parsed
+        if result.is_ok() {
+            assert!(database.edge_count() >= 2);
+        }
+    }
+
+    #[test]
+    fn test_parser_handles_unicode_in_labels() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A[こんにちは]
+            B[Здравствуй]
+            C[Hello 世界]
+            A --> B
+            B --> C"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.node_count(), 3);
+        assert_eq!(database.get_node("A").unwrap().label, "こんにちは");
+        assert_eq!(database.get_node("B").unwrap().label, "Здравствуй");
+        assert_eq!(database.get_node("C").unwrap().label, "Hello 世界");
+    }
+
+    #[test]
+    fn test_parser_handles_semicolon_separated_statements() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = "graph TD; A --> B; B --> C; C --> D";
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.edge_count(), 3);
+        assert_eq!(database.node_count(), 4);
+    }
+
+    #[test]
+    fn test_parser_handles_chained_edges() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = "graph TD\n    A --> B --> C --> D";
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.edge_count(), 3);
+        assert_eq!(database.node_count(), 4);
+    }
+
+    #[test]
+    fn test_parser_handles_empty_subgraph() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            subgraph "Empty"
+            end"#;
+
+        parser.parse(input, &mut database).unwrap();
+        // Empty subgraph should be handled gracefully
+        assert_eq!(database.node_count(), 0);
+        assert_eq!(database.edge_count(), 0);
     }
 }

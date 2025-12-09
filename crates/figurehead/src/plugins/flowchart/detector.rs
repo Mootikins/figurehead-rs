@@ -3,6 +3,7 @@
 //! Detects flowchart diagram syntax patterns.
 
 use crate::core::Detector;
+use tracing::{debug, info, trace};
 
 /// Flowchart detector implementation
 pub struct FlowchartDetector;
@@ -16,28 +17,36 @@ impl FlowchartDetector {
 impl Detector for FlowchartDetector {
     fn detect(&self, input: &str) -> bool {
         let input = input.trim();
+        let input_len = input.len();
+
+        trace!(input_len, "FlowchartDetector::detect called");
 
         if input.is_empty() {
+            debug!("Empty input, detection failed");
             return false;
         }
 
         // Check for explicit flowchart/graph keywords (highest priority)
         if input.contains("graph") || input.contains("flowchart") {
+            info!("Detected flowchart via graph/flowchart keyword");
             return true;
         }
 
         // Check for arrow patterns
         if input.contains("-->") || input.contains("---") {
+            debug!("Detected flowchart via arrow patterns");
             return true;
         }
 
         // Check for subgraph syntax
         if input.contains("subgraph") {
+            debug!("Detected flowchart via subgraph syntax");
             return true;
         }
 
         // Check for end keyword (subgraph terminator)
         if input == "end" || input.contains("\nend\n") {
+            debug!("Detected flowchart via end keyword");
             return true;
         }
 
@@ -47,9 +56,11 @@ impl Detector for FlowchartDetector {
             || (input.contains("(") && input.contains(")") && input.contains(" -->"))
             || (input.contains("{") && input.contains("}") && input.contains(" -->"))
         {
+            debug!("Detected flowchart via node syntax patterns");
             return true;
         }
 
+        trace!("No flowchart patterns detected");
         false
     }
 

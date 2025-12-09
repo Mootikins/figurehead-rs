@@ -4,7 +4,9 @@
 //! Each plugin implements the core traits for its specific diagram type.
 
 pub mod flowchart;
+pub mod gitgraph;
 pub mod orchestrator;
 
 pub use flowchart::*;
+pub use gitgraph::*;
 pub use orchestrator::*;

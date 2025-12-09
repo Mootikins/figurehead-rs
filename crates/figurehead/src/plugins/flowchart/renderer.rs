@@ -3,6 +3,7 @@
 //! Converts positioned nodes into ASCII diagrams using various character sets.
 
 use anyhow::Result;
+use tracing::{debug, info, span, trace, Level};
 
 use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode};
 use crate::core::{CharacterSet, Database, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
@@ -796,37 +797,92 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
     type Output = String;
 
     fn render(&self, database: &FlowchartDatabase) -> Result<Self::Output> {
+        let render_span = span!(
+            Level::INFO,
+            "render_flowchart",
+            style = ?self.style,
+            node_count = database.node_count(),
+            edge_count = database.edge_count()
+        );
+        let _enter = render_span.enter(); // Enter span to track duration
+
+        trace!("Starting flowchart rendering");
+
         // First, compute the layout
         let layout_algo = FlowchartLayoutAlgorithm::new();
         let layout = layout_algo.layout(database)?;
 
         if layout.nodes.is_empty() {
+            debug!("Empty layout, returning empty string");
             return Ok(String::new());
         }
 
         // Create canvas
+        let canvas_span = span!(Level::DEBUG, "create_canvas", width = layout.width, height = layout.height);
+        let _canvas_enter = canvas_span.enter();
         let mut canvas = AsciiCanvas::new(layout.width, layout.height);
+        debug!("Created ASCII canvas");
+        drop(_canvas_enter);
 
         // Draw edges first (so nodes overlay them)
+        let edge_span = span!(Level::DEBUG, "draw_edges", edge_count = layout.edges.len());
+        let _edge_enter = edge_span.enter();
+        let mut edges_drawn = 0;
         for edge in &layout.edges {
             let edge_data = database
                 .edges()
                 .find(|e| e.from == edge.from_id && e.to == edge.to_id);
             let edge_type = edge_data.map(|e| e.edge_type).unwrap_or(EdgeType::Arrow);
+            let edge_label = edge_data.and_then(|e| e.label.as_deref());
+            trace!(
+                edge_from = %edge.from_id,
+                edge_to = %edge.to_id,
+                edge_type = ?edge_type,
+                edge_label = ?edge_label,
+                waypoint_count = edge.waypoints.len(),
+                "Drawing edge"
+            );
             self.draw_edge(&mut canvas, &edge.waypoints, edge_type);
-            if let Some(label) = edge_data.and_then(|e| e.label.as_deref()) {
+            if let Some(label) = edge_label {
                 self.draw_edge_label(&mut canvas, &edge.waypoints, label);
             }
+            edges_drawn += 1;
         }
+        debug!(edges_drawn, "Drew edges");
+        drop(_edge_enter);
 
         // Draw nodes
+        let node_span = span!(Level::DEBUG, "draw_nodes", node_count = layout.nodes.len());
+        let _node_enter = node_span.enter();
+        let mut nodes_drawn = 0;
         for node in &layout.nodes {
             if let Some(node_data) = database.get_node(&node.id) {
+                trace!(
+                    node_id = %node.id,
+                    node_shape = ?node_data.shape,
+                    node_label = %node_data.label,
+                    node_x = node.x,
+                    node_y = node.y,
+                    node_width = node.width,
+                    node_height = node.height,
+                    "Drawing node"
+                );
                 self.draw_node(&mut canvas, node, node_data.shape, &node_data.label);
+                nodes_drawn += 1;
             }
         }
+        debug!(nodes_drawn, "Drew nodes");
+        drop(_node_enter);
 
-        Ok(canvas.to_string())
+        let output = canvas.to_string();
+        info!(
+            output_len = output.len(),
+            canvas_width = layout.width,
+            canvas_height = layout.height,
+            "Rendering completed"
+        );
+
+        Ok(output)
     }
 
     fn name(&self) -> &'static str {

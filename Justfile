@@ -28,3 +28,15 @@ publish-lib: release-check
 # Publish the CLI after the library is on crates.io
 publish-cli:
 	cargo publish -p figurehead-cli --locked
+
+# Build WASM module for web examples
+wasm-build:
+	@echo "Building WASM module..."
+	wasm-pack build --target web --out-dir examples/web-editor/pkg
+
+# Run web server for examples
+web-server:
+	cargo run --manifest-path examples/web-editor/Cargo.toml
+
+# Build WASM and run web server
+web: wasm-build web-server

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Figurehead - Mermaid to ASCII Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        select {
+            padding: 10px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .output-section {
+            margin-top: 30px;
+        }
+
+        .output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            min-height: 100px;
+            border: 2px solid #333;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #fcc;
+            margin-top: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .example {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .example h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .example-code {
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 13px;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow-x: auto;
+        }
+
+        .example-button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 14px;
+            background: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 Figurehead</h1>
+            <p>Convert Mermaid.js diagrams to ASCII art</p>
+        </header>
+
+        <div class="content">
+            <div class="input-section">
+                <label for="diagram-input">Mermaid Diagram Syntax:</label>
+                <textarea id="diagram-input" placeholder="graph TD&#10;    A[Start] --> B{Decision}&#10;    B -->|Yes| C[Success]&#10;    B -->|No| D[Try Again]">graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Success]
+    B -->|No| D[Try Again]</textarea>
+            </div>
+
+            <div class="controls">
+                <select id="style-select">
+                    <option value="unicode">Unicode (Default)</option>
+                    <option value="ascii">ASCII</option>
+                    <option value="unicode-math">Unicode Math</option>
+                    <option value="compact">Compact</option>
+                </select>
+                <button id="render-button" onclick="renderDiagram()">Render Diagram</button>
+                <button id="parse-button" onclick="parseDiagram()">Parse Only</button>
+            </div>
+
+            <div class="output-section">
+                <label>Output:</label>
+                <div id="output" class="output">Click "Render Diagram" to see the ASCII art output...</div>
+            </div>
+
+            <div class="example">
+                <h3>Example Diagrams</h3>
+                <div class="example-code">graph LR; A-->B-->C</div>
+                <button class="example-button" onclick="loadExample('graph LR; A-->B-->C')">Load Example</button>
+                
+                <div class="example-code" style="margin-top: 15px;">graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Success]
+    B -->|No| D[Try Again]</div>
+                <button class="example-button" onclick="loadExample(`graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Success]
+    B -->|No| D[Try Again]`)">Load Example</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { render_flowchart, render_flowchart_with_style, parse_flowchart } from './pkg/figurehead.js';
+
+        let wasmInitialized = false;
+
+        async function initWasm() {
+            if (!wasmInitialized) {
+                await init();
+                wasmInitialized = true;
+            }
+        }
+
+        window.renderDiagram = async function() {
+            await initWasm();
+            const input = document.getElementById('diagram-input').value;
+            const style = document.getElementById('style-select').value;
+            const output = document.getElementById('output');
+            const button = document.getElementById('render-button');
+
+            if (!input.trim()) {
+                output.textContent = 'Please enter a Mermaid diagram syntax.';
+                output.className = 'output error';
+                return;
+            }
+
+            button.disabled = true;
+            output.className = 'output loading';
+            output.textContent = 'Rendering...';
+
+            try {
+                let result;
+                if (style === 'unicode') {
+                    result = render_flowchart(input);
+                } else {
+                    result = render_flowchart_with_style(input, style);
+                }
+
+                output.textContent = result;
+                output.className = 'output';
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                output.className = 'output error';
+            } finally {
+                button.disabled = false;
+            }
+        };
+
+        window.parseDiagram = async function() {
+            await initWasm();
+            const input = document.getElementById('diagram-input').value;
+            const output = document.getElementById('output');
+            const button = document.getElementById('parse-button');
+
+            if (!input.trim()) {
+                output.textContent = 'Please enter a Mermaid diagram syntax.';
+                output.className = 'output error';
+                return;
+            }
+
+            button.disabled = true;
+            output.className = 'output loading';
+            output.textContent = 'Parsing...';
+
+            try {
+                const result = parse_flowchart(input);
+                const data = JSON.parse(result);
+                output.textContent = `Parsed successfully!\n\nNodes: ${data.node_count}\nEdges: ${data.edge_count}\nDirection: ${data.direction}`;
+                output.className = 'output';
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                output.className = 'output error';
+            } finally {
+                button.disabled = false;
+            }
+        };
+
+        window.loadExample = function(example) {
+            document.getElementById('diagram-input').value = example;
+        };
+
+        // Initialize WASM on page load
+        initWasm().catch(err => {
+            console.error('Failed to initialize WASM:', err);
+            document.getElementById('output').textContent = 'Failed to load WASM module. Make sure to build with wasm-pack.';
+            document.getElementById('output').className = 'output error';
+        });
+    </script>
+</body>
+</html>

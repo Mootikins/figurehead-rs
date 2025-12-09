@@ -570,4 +570,231 @@ mod tests {
             panic!("Expected subgraph statement");
         }
     }
+
+    #[test]
+    fn test_all_edge_connector_types() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Arrow
+        let stmt = parser.parse_statement("A --> B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::Arrow, .. })));
+
+        // Thick arrow
+        let stmt = parser.parse_statement("A ==> B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::ThickArrow, .. })));
+
+        // Line
+        let stmt = parser.parse_statement("A --- B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::Line, .. })));
+
+        // Dotted line
+        let stmt = parser.parse_statement("A -.- B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::DottedLine, .. })));
+
+        // Dotted arrow
+        let stmt = parser.parse_statement("A -.-> B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::DottedArrow, .. })));
+
+        // Invisible
+        let stmt = parser.parse_statement("A ~~~ B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::Invisible, .. })));
+
+        // Open arrow
+        let stmt = parser.parse_statement("A --o B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::OpenArrow, .. })));
+
+        // Cross arrow
+        let stmt = parser.parse_statement("A --x B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::CrossArrow, .. })));
+
+        // Thick line
+        let stmt = parser.parse_statement("A === B").unwrap();
+        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::ThickLine, .. })));
+    }
+
+    #[test]
+    fn test_edge_with_inline_label_variations() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Standard inline label
+        let stmt = parser.parse_statement("A -->|Yes| B").unwrap();
+        if let Statement::Edge(edge) = stmt {
+            assert_eq!(edge.label, Some("Yes".to_string()));
+        } else {
+            panic!("Expected edge");
+        }
+
+        // Label with spaces
+        let stmt = parser.parse_statement("A -->|Hello World| B").unwrap();
+        if let Statement::Edge(edge) = stmt {
+            assert_eq!(edge.label, Some("Hello World".to_string()));
+        } else {
+            panic!("Expected edge");
+        }
+
+        // Label with special characters (allowed in labels)
+        let stmt = parser.parse_statement("A -->|Yes/No| B").unwrap();
+        if let Statement::Edge(edge) = stmt {
+            assert_eq!(edge.label, Some("Yes/No".to_string()));
+        } else {
+            panic!("Expected edge");
+        }
+    }
+
+    #[test]
+    fn test_node_with_empty_label() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Node ID alone should work (no label)
+        // But node with empty label brackets should fail (label parser requires at least 1 char)
+        assert!(parser.parse_statement("A[]").is_err());
+        
+        // Node ID without brackets should work (implicit label = ID)
+        // However, parse_statement expects a full statement, so just ID won't parse as a node
+        // Let's test that a node with a valid label works
+        let stmt = parser.parse_statement("A[Label]").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "A");
+            assert_eq!(node.label, "Label");
+        } else {
+            panic!("Expected node");
+        }
+    }
+
+    #[test]
+    fn test_node_ids_with_numbers() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Node IDs can contain numbers after first char
+        let stmt = parser.parse_statement("A1[Label]").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "A1");
+            assert_eq!(node.label, "Label");
+        } else {
+            panic!("Expected node");
+        }
+
+        let stmt = parser.parse_statement("Node123[Test]").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "Node123");
+        } else {
+            panic!("Expected node");
+        }
+    }
+
+    #[test]
+    fn test_node_labels_with_special_chars() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Labels can contain various characters except delimiters
+        let stmt = parser.parse_statement("A[Hello-World_123]").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.label, "Hello-World_123");
+        } else {
+            panic!("Expected node");
+        }
+
+        // Unicode characters
+        let stmt = parser.parse_statement("A[こんにちは]").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.label, "こんにちは");
+        } else {
+            panic!("Expected node");
+        }
+    }
+
+    #[test]
+    fn test_subgraph_without_quotes() {
+        let parser = ChumskyFlowchartParser::new();
+
+        let input = r#"subgraph ProcessGroup
+            A --> B
+        end"#;
+
+        let statement = parser.parse_statement(input).unwrap();
+        if let Statement::Subgraph(title, _) = statement {
+            assert_eq!(title, "ProcessGroup");
+        } else {
+            panic!("Expected subgraph statement");
+        }
+    }
+
+    #[test]
+    fn test_subgraph_with_nested_content() {
+        let parser = ChumskyFlowchartParser::new();
+
+        let input = r#"subgraph "Outer"
+            A --> B
+            subgraph "Inner"
+                C --> D
+            end
+            B --> C
+        end"#;
+
+        let statement = parser.parse_statement(input).unwrap();
+        if let Statement::Subgraph(title, children) = statement {
+            assert_eq!(title, "Outer");
+            assert!(children.len() >= 2);
+        } else {
+            panic!("Expected subgraph statement");
+        }
+    }
+
+    #[test]
+    fn test_whitespace_variations() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Extra whitespace
+        assert!(parser.parse_statement("A  -->  B").is_ok());
+        assert!(parser.parse_statement("A\t-->\tB").is_ok());
+        assert!(parser.parse_statement("A\n-->\nB").is_ok());
+
+        // No whitespace
+        assert!(parser.parse_statement("A-->B").is_ok());
+    }
+
+    #[test]
+    fn test_malformed_syntax_errors() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Missing closing bracket
+        assert!(parser.parse_statement("A[Label").is_err());
+
+        // Missing node ID
+        assert!(parser.parse_statement("[Label]").is_err());
+
+        // Incomplete edge
+        assert!(parser.parse_statement("A -->").is_err());
+
+        // Invalid connector
+        assert!(parser.parse_statement("A ----> B").is_err());
+    }
+
+    #[test]
+    fn test_edge_with_node_shapes() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Edge with shaped nodes
+        let stmt = parser.parse_statement("A[Start] --> B{Decision}").unwrap();
+        if let Statement::Edge(edge) = stmt {
+            assert_eq!(edge.from_ref.shape, Some(NodeShape::Rectangle));
+            assert_eq!(edge.to_ref.shape, Some(NodeShape::Diamond));
+        } else {
+            panic!("Expected edge");
+        }
+    }
+
+    #[test]
+    fn test_multiple_statements_on_one_line() {
+        use crate::core::{Database, Parser};
+
+        // This tests the extract_statements function in parser.rs
+        // Multiple statements separated by semicolons
+        let input = "A --> B; B --> C; C --> D";
+        // Note: parse_statement only parses one statement, so we test the full parser
+        let full_parser = super::super::parser::FlowchartParser::new();
+        let mut db = super::super::database::FlowchartDatabase::new();
+        assert!(full_parser.parse(input, &mut db).is_ok());
+        assert_eq!(db.edge_count(), 3);
+    }
 }

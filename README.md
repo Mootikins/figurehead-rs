@@ -56,6 +56,12 @@ figurehead -i input.mmd -o output.txt
 
 # Respect FIGUREHEAD_STYLE environment variable
 FIGUREHEAD_STYLE=compact figurehead convert -i input.mmd
+
+# Enable debug logging
+figurehead convert --log-level debug --log-format pretty -i input.mmd
+
+# Use environment variables for logging
+FIGUREHEAD_LOG_LEVEL=debug FIGUREHEAD_LOG_FORMAT=json figurehead convert -i input.mmd
 ```
 
 ### Library Usage
@@ -79,6 +85,58 @@ let output = renderer.render(&database)?;
 println!("{}", output);
 ```
 
+## Logging
+
+Figurehead includes comprehensive structured logging using the `tracing` crate.
+This helps with debugging diagram processing and understanding performance.
+
+### Log Levels
+
+- `trace`: Very detailed information for deep debugging
+- `debug`: Detailed information for debugging (recommended for development)
+- `info`: General informational messages (default)
+- `warn`: Warning messages
+- `error`: Error messages only
+
+### Log Formats
+
+- `compact`: Single-line format, good for production (default)
+- `pretty`: Multi-line format with colors, good for development
+- `json`: JSON format, good for log aggregation systems
+
+### Usage Examples
+
+```bash
+# Enable debug logging with pretty format
+figurehead convert --log-level debug --log-format pretty -i input.mmd
+
+# Use environment variables (overrides CLI flags)
+FIGUREHEAD_LOG_LEVEL=trace FIGUREHEAD_LOG_FORMAT=json figurehead convert -i input.mmd
+
+# Filter logs by component
+RUST_LOG="figurehead::plugins::flowchart::parser=debug" figurehead convert -i input.mmd
+```
+
+### Debugging with Logs
+
+When debugging diagram processing issues, enable debug logging to see:
+
+- **Detection**: Which diagram type was detected and confidence scores
+- **Parsing**: Parsing stages, node/edge counts, and any skipped statements
+- **Layout**: Layer assignment, node positioning, edge routing, and canvas dimensions
+- **Rendering**: Canvas creation, nodes/edges drawn, and final output size
+
+Example output with `--log-level debug --log-format pretty`:
+
+```
+INFO  figurehead::plugins::orchestrator: Starting diagram processing pipeline
+DEBUG figurehead::plugins::orchestrator: Diagram type detected diagram_type=flowchart
+DEBUG figurehead::plugins::flowchart::parser: Parsing completed node_count=3 edge_count=2
+DEBUG figurehead::plugins::flowchart::layout: Layout completed node_count=3 edge_count=2 width=45 height=12
+DEBUG figurehead::plugins::flowchart::renderer: Rendering completed output_len=234 canvas_width=45 canvas_height=12
+INFO  figurehead::plugins::orchestrator: Pipeline completed successfully
+```
+
 ## Development
 
 ### Building
@@ -99,6 +157,9 @@ cargo test --test core_traits
 
 # Run with colors
 cargo test -- --nocapture
+
+# Run with logging enabled
+RUST_LOG=debug cargo test
 ```
 
 ### Project Structure
@@ -117,15 +178,38 @@ tests/
 
 ## WASM Support
 
-The core library is designed for WASM compilation:
+The core library is fully WASM-compatible and includes a web example:
+
+### Building WASM Module
 
 ```bash
-# Build for WASM (requires wasm-pack)
-cargo build --target wasm32-unknown-unknown
-wasm-pack build --target web
+# Install wasm-pack if needed
+cargo install wasm-pack
+
+# Build for web
+cd examples/web
+./build.sh
 ```
 
-Future versions will include browser APIs and web-based diagram rendering.
+### Running Web Example
+
+```bash
+# Build WASM module
+cd examples/web
+./build.sh
+
+# Serve with Rust HTTP server
+cargo run --bin server
+# Then visit http://localhost:8000/
+```
+
+The web examples provide:
+- **Interactive Editor** (`index.html`): Full-featured editor with examples
+- **Live Editor** (`editor.html`): Minimal split-pane editor with real-time updates
+- Multiple character set styles
+- Parse-only mode to inspect diagram structure
+
+See `examples/web-editor/README.md` for more details.
 
 ## Dependencies
 

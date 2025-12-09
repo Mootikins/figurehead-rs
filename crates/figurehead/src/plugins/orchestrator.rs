@@ -5,8 +5,9 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
+use tracing::{debug, info, span, trace, warn, Level};
 
-use crate::core::{Detector, Parser, Renderer};
+use crate::core::{Database, Detector, Parser, Renderer};
 use crate::plugins::flowchart::FlowchartDatabase;
 
 /// Plugin orchestrator that coordinates the entire pipeline
@@ -68,12 +69,21 @@ impl Orchestrator {
 
     /// Detect diagram type from input text
     pub fn detect_diagram_type(&self, input: &str) -> Result<String> {
+        let detect_span = span!(Level::INFO, "detect_diagram_type", input_len = input.len());
+        let _enter = detect_span.enter();
+
+        trace!("Starting diagram type detection");
+
         for (name, detector) in &self.detectors {
+            let confidence = detector.confidence(input);
+            trace!(detector = name, confidence, "Checking detector");
             if detector.detect(input) {
+                info!(detector = name, confidence, "Detected diagram type");
                 return Ok(name.clone());
             }
         }
 
+        warn!("No suitable detector found for input");
         Err(anyhow::anyhow!("No suitable detector found for input"))
     }
 
@@ -81,9 +91,20 @@ impl Orchestrator {
     ///
     /// Runs detector → parser → renderer using registered plugins.
     pub fn process(&self, input: &str) -> Result<String> {
+        let process_span = span!(Level::INFO, "process_diagram", input_len = input.len());
+        let _enter = process_span.enter();
+
+        info!("Starting diagram processing pipeline");
+
         // Step 1: Detect diagram type (must be flowchart for now)
+        let detect_span = span!(Level::DEBUG, "pipeline_detect");
+        let _detect_enter = detect_span.enter();
         let diagram_type = self.detect_diagram_type(input)?;
+        debug!(diagram_type, "Diagram type detected");
+        drop(_detect_enter);
+
         if diagram_type != "flowchart" {
+            warn!(diagram_type, "Unsupported diagram type");
             return Err(anyhow::anyhow!(
                 "Only flowchart diagrams are currently supported"
             ));
@@ -96,7 +117,14 @@ impl Orchestrator {
     ///
     /// Useful when the caller already knows the diagram type.
     pub fn process_flowchart(&self, input: &str) -> Result<String> {
+        let flowchart_span = span!(Level::INFO, "process_flowchart", input_len = input.len());
+        let _enter = flowchart_span.enter(); // Enter span to track total pipeline duration
+
+        info!("Processing flowchart diagram");
+
         // Step 1: Parse the input
+        let parse_span = span!(Level::DEBUG, "pipeline_parse");
+        let _parse_enter = parse_span.enter();
         let parser = self
             .flowchart_parser
             .as_ref()
@@ -104,17 +132,29 @@ impl Orchestrator {
 
         let mut database = FlowchartDatabase::new();
         parser.parse(input, &mut database)?;
+        debug!(
+            node_count = database.node_count(),
+            edge_count = database.edge_count(),
+            "Parsing completed"
+        );
+        drop(_parse_enter);
 
         // Step 2: Render the result
+        let render_span = span!(Level::DEBUG, "pipeline_render");
+        let _render_enter = render_span.enter();
         let renderer = self
             .ascii_renderer
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No ASCII renderer available"))?;
 
         let canvas = renderer.render(&database)?;
+        debug!(output_len = canvas.len(), "Rendering completed");
+        drop(_render_enter);
+
+        info!("Pipeline completed successfully");
 
         // Step 3: Convert canvas to string
-        Ok(canvas.to_string())
+        Ok(canvas)
     }
 }
 
