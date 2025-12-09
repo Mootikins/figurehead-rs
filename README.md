@@ -1,6 +1,8 @@
-# Figurehead
+# Figurehead ![CI](https://github.com/moot/figurehead-rs/actions/workflows/ci.yml/badge.svg?branch=master) ![crates.io](https://img.shields.io/badge/crates.io-pending-lightgrey) ![docs.rs](https://img.shields.io/badge/docs.rs-pending-lightgrey)
 
 A Rust utility to convert Mermaid.js diagram markup into ASCII diagrams, inspired by [mermaid-ascii](https://github.com/AlexanderGrooff/mermaid-ascii).
+
+_Ideas:_ add a small banner/screenshot of a rendered flowchart once we have more diagram types; a light/dark pair of ASCII captures would fit the theme. Swap the crates.io/docs.rs badges to live ones after publishing.
 
 ## Features
 
