@@ -19,17 +19,7 @@ release-check:
 	git diff --quiet --exit-code
 	cargo test
 	cargo publish -p figurehead --locked --dry-run
-	python - <<'PY'
-import subprocess, tomllib, pathlib
-root = pathlib.Path(__file__).resolve().parent
-data = tomllib.loads((root / "Cargo.toml").read_text())
-version = data["workspace"]["package"]["version"]
-res = subprocess.run(["git", "tag", f"v{version}"], capture_output=True, text=True)
-if res.returncode == 0 and res.stdout.strip() == f"v{version}":
-    print(f"Tag v{version} already exists.")
-else:
-    print(f"Ready to tag: v{version}")
-PY
+	python -c "from pathlib import Path; import re, subprocess; text=Path('Cargo.toml').read_text(); m=re.search(r'version\\s*=\\s*\"([^\"]+)\"', text); version=m.group(1) if m else 'unknown'; res=subprocess.run(['git','tag',f'v{version}'], capture_output=True, text=True); print('Tag v{version} already exists.' if res.returncode==0 and res.stdout.strip()==f'v{version}' else f'Ready to tag: v{version}')"
 
 # Publish the library crate (runs release-check first)
 publish-lib: release-check
