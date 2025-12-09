@@ -1,4 +1,4 @@
-# Figurehead ![CI](https://github.com/moot/figurehead-rs/actions/workflows/ci.yml/badge.svg?branch=master) ![crates.io](https://img.shields.io/badge/crates.io-pending-lightgrey) ![docs.rs](https://img.shields.io/badge/docs.rs-pending-lightgrey)
+# Figurehead ![CI](https://github.com/moot/figurehead-rs/actions/workflows/ci.yml/badge.svg?branch=master) [![crates.io](https://img.shields.io/crates/v/figurehead.svg)](https://crates.io/crates/figurehead) [![docs.rs](https://docs.rs/figurehead/badge.svg)](https://docs.rs/figurehead)
 
 A Rust utility to convert Mermaid.js diagram markup into ASCII diagrams, inspired by [mermaid-ascii](https://github.com/AlexanderGrooff/mermaid-ascii).
 
