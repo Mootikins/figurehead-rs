@@ -137,6 +137,42 @@ impl ChumskyFlowchartParser {
                 shape: NodeShape::Hexagon,
             });
 
+        // A[(label)] - Cylinder / database
+        let cylinder_node = node_id
+            .clone()
+            .then_ignore(just("[("))
+            .then(Self::label_parser())
+            .then_ignore(just(")]"))
+            .map(|(id, label)| Node {
+                id,
+                label,
+                shape: NodeShape::Cylinder,
+            });
+
+        // A[/label/] - Parallelogram (input/output)
+        let parallelogram_node = node_id
+            .clone()
+            .then_ignore(just("[/"))
+            .then(Self::label_parser_no_slash())
+            .then_ignore(just("/]"))
+            .map(|(id, label)| Node {
+                id,
+                label,
+                shape: NodeShape::Parallelogram,
+            });
+
+        // A[/label\] - Trapezoid
+        let trapezoid_node = node_id
+            .clone()
+            .then_ignore(just("[/"))
+            .then(Self::label_parser_no_slash())
+            .then_ignore(just("\\]"))
+            .map(|(id, label)| Node {
+                id,
+                label,
+                shape: NodeShape::Trapezoid,
+            });
+
         // A>label] - Asymmetric (flag)
         let asymmetric_node = node_id
             .clone()
@@ -151,8 +187,11 @@ impl ChumskyFlowchartParser {
 
         // Order matters - try more specific patterns first
         hexagon_node
+            .or(cylinder_node)
             .or(subroutine_node)
             .or(circle_node)
+            .or(parallelogram_node)
+            .or(trapezoid_node)
             .or(rectangular_node)
             .or(rounded_node)
             .or(diamond_node)
@@ -247,6 +286,11 @@ impl ChumskyFlowchartParser {
             .then_ignore(just("))"))
             .map(|label| (label, NodeShape::Circle));
 
+        let cylinder = just("[(")
+            .ignore_then(Self::label_parser())
+            .then_ignore(just(")]"))
+            .map(|label| (label, NodeShape::Cylinder));
+
         let bracket = just('[')
             .ignore_then(Self::label_parser())
             .then_ignore(just(']'))
@@ -267,10 +311,23 @@ impl ChumskyFlowchartParser {
             .then_ignore(just(']'))
             .map(|label| (label, NodeShape::Asymmetric));
 
+        let parallelogram = just("[/")
+            .ignore_then(Self::label_parser_no_slash())
+            .then_ignore(just("/]"))
+            .map(|label| (label, NodeShape::Parallelogram));
+
+        let trapezoid = just("[/")
+            .ignore_then(Self::label_parser_no_slash())
+            .then_ignore(just("\\]"))
+            .map(|label| (label, NodeShape::Trapezoid));
+
         // Order by specificity
         double_bracket
             .or(double_brace)
             .or(double_paren)
+            .or(cylinder)
+            .or(parallelogram)
+            .or(trapezoid)
             .or(bracket)
             .or(paren)
             .or(brace)
@@ -310,6 +367,14 @@ impl ChumskyFlowchartParser {
 
     fn label_parser<'src>() -> impl Parser<'src, &'src str, String> + Clone {
         none_of("[](){}|\"\n\r\t")
+            .repeated()
+            .at_least(1)
+            .collect::<String>()
+            .labelled("label")
+    }
+
+    fn label_parser_no_slash<'src>() -> impl Parser<'src, &'src str, String> + Clone {
+        none_of("[](){}|\"/\\\n\r\t")
             .repeated()
             .at_least(1)
             .collect::<String>()
@@ -420,6 +485,18 @@ mod tests {
         // Hexagon
         let stmt = parser.parse_statement("F{{Label}}").unwrap();
         assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Hexagon, .. })));
+
+        // Cylinder
+        let stmt = parser.parse_statement("G[(Label)]").unwrap();
+        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Cylinder, .. })));
+
+        // Parallelogram
+        let stmt = parser.parse_statement("H[/Label/]").unwrap();
+        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Parallelogram, .. })));
+
+        // Trapezoid
+        let stmt = parser.parse_statement("I[/Label\\]").unwrap();
+        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Trapezoid, .. })));
     }
 
     #[test]

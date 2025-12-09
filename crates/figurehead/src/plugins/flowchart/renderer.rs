@@ -25,10 +25,24 @@ impl AsciiCanvas {
         }
     }
 
-    pub fn set_char(&mut self, x: usize, y: usize, c: char) {
-        if y < self.height && x < self.width {
-            self.grid[y][x] = c;
+    fn ensure_size(&mut self, min_width: usize, min_height: usize) {
+        if min_width > self.width {
+            for row in &mut self.grid {
+                row.resize(min_width, ' ');
+            }
+            self.width = min_width;
         }
+        if min_height > self.height {
+            let extra_rows = min_height - self.height;
+            self.grid
+                .extend((0..extra_rows).map(|_| vec![' '; self.width]));
+            self.height = min_height;
+        }
+    }
+
+    pub fn set_char(&mut self, x: usize, y: usize, c: char) {
+        self.ensure_size(x + 1, y + 1);
+        self.grid[y][x] = c;
     }
 
     pub fn get_char(&self, x: usize, y: usize) -> char {
@@ -40,6 +54,10 @@ impl AsciiCanvas {
     }
 
     pub fn draw_text(&mut self, x: usize, y: usize, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.ensure_size(x + text.len(), y + 1);
         for (i, c) in text.chars().enumerate() {
             self.set_char(x + i, y, c);
         }
@@ -72,36 +90,38 @@ struct BoxChars {
 }
 
 impl BoxChars {
-    fn rectangle() -> Self {
-        Self {
-            top_left: '┌',
-            top_right: '┐',
-            bottom_left: '└',
-            bottom_right: '┘',
-            horizontal: '─',
-            vertical: '│',
+    fn rectangle(style: CharacterSet) -> Self {
+        match style {
+            CharacterSet::Ascii | CharacterSet::Compact => Self {
+                top_left: '+',
+                top_right: '+',
+                bottom_left: '+',
+                bottom_right: '+',
+                horizontal: '-',
+                vertical: '|',
+            },
+            _ => Self {
+                top_left: '┌',
+                top_right: '┐',
+                bottom_left: '└',
+                bottom_right: '┘',
+                horizontal: '─',
+                vertical: '│',
+            },
         }
     }
 
-    fn rounded() -> Self {
-        Self {
-            top_left: '╭',
-            top_right: '╮',
-            bottom_left: '╰',
-            bottom_right: '╯',
-            horizontal: '─',
-            vertical: '│',
-        }
-    }
-
-    fn double() -> Self {
-        Self {
-            top_left: '╔',
-            top_right: '╗',
-            bottom_left: '╚',
-            bottom_right: '╝',
-            horizontal: '═',
-            vertical: '║',
+    fn rounded(style: CharacterSet) -> Self {
+        match style {
+            CharacterSet::Ascii | CharacterSet::Compact => Self::rectangle(style),
+            _ => Self {
+                top_left: '╭',
+                top_right: '╮',
+                bottom_left: '╰',
+                bottom_right: '╯',
+                horizontal: '─',
+                vertical: '│',
+            },
         }
     }
 }
@@ -137,18 +157,22 @@ impl FlowchartRenderer {
         label: &str,
     ) {
         match shape {
-            NodeShape::Rectangle | NodeShape::Subroutine => {
-                self.draw_rectangle(canvas, node, label, BoxChars::rectangle())
+            NodeShape::Rectangle => {
+                self.draw_rectangle(canvas, node, label, BoxChars::rectangle(self.style))
             }
+            NodeShape::Subroutine => self.draw_subroutine(canvas, node, label),
             NodeShape::RoundedRect => {
-                self.draw_rectangle(canvas, node, label, BoxChars::rounded())
+                self.draw_rectangle(canvas, node, label, BoxChars::rounded(self.style))
             }
             NodeShape::Diamond => self.draw_diamond(canvas, node, label),
             NodeShape::Circle => self.draw_circle(canvas, node, label),
             NodeShape::Hexagon => {
-                self.draw_rectangle(canvas, node, label, BoxChars::double())
+                self.draw_hexagon(canvas, node, label)
             }
-            _ => self.draw_rectangle(canvas, node, label, BoxChars::rectangle()),
+            NodeShape::Asymmetric => self.draw_asymmetric(canvas, node, label),
+            NodeShape::Cylinder => self.draw_cylinder(canvas, node, label),
+            NodeShape::Parallelogram => self.draw_parallelogram(canvas, node, label),
+            NodeShape::Trapezoid => self.draw_trapezoid(canvas, node, label),
         }
     }
 
@@ -188,6 +212,193 @@ impl FlowchartRenderer {
             canvas.set_char(x + i, y + h - 1, chars.horizontal);
         }
         canvas.set_char(x + w - 1, y + h - 1, chars.bottom_right);
+    }
+
+    fn draw_subroutine(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
+        self.draw_rectangle(canvas, node, label, BoxChars::rectangle(self.style));
+
+        // Add the inner vertical lines that characterize subroutines
+        if node.width > 4 && node.height > 2 {
+            let left = node.x + 1;
+            let right = node.x + node.width - 2;
+            for row in node.y + 1..node.y + node.height - 1 {
+                let pipe = if self.style.is_ascii() { '|' } else { '│' };
+                canvas.set_char(left, row, pipe);
+                canvas.set_char(right, row, pipe);
+            }
+        }
+    }
+
+    fn draw_hexagon(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
+        let x = node.x;
+        let y = node.y;
+        let w = node.width;
+        let h = node.height;
+
+        // Top slant
+        if w > 2 {
+            canvas.set_char(x + 1, y, '/');
+            for i in x + 2..x + w - 2 {
+                canvas.set_char(i, y, '-');
+            }
+            canvas.set_char(x + w - 2, y, '\\');
+        }
+
+        // Middle
+        let mid_y = y + h / 2;
+        canvas.set_char(x, mid_y, '<');
+        canvas.set_char(x + w - 1, mid_y, '>');
+        let label_x = x + (w.saturating_sub(label.len())) / 2;
+        canvas.draw_text(label_x.max(x + 1), mid_y, label);
+
+        // Upper and lower slants
+        for row in 1..h - 1 {
+            let current_y = y + row;
+            if current_y == mid_y {
+                continue;
+            }
+            canvas.set_char(x, current_y, '/');
+            canvas.set_char(x + w - 1, current_y, '\\');
+        }
+
+        // Bottom slant
+        if w > 2 {
+            canvas.set_char(x + 1, y + h - 1, '\\');
+            for i in x + 2..x + w - 2 {
+                canvas.set_char(i, y + h - 1, '-');
+            }
+            canvas.set_char(x + w - 2, y + h - 1, '/');
+        }
+    }
+
+    fn draw_asymmetric(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
+        // Start with a rectangle base
+        self.draw_rectangle(canvas, node, label, BoxChars::rectangle(self.style));
+
+        // Replace the right edge with an angled flag tip
+        let mid_y = node.y + node.height / 2;
+        let tip_x = node.x + node.width - 1;
+        canvas.set_char(tip_x, mid_y, '>');
+        if node.height > 2 {
+            canvas.set_char(tip_x, node.y, '┐');
+            canvas.set_char(tip_x, node.y + node.height - 1, '┘');
+        }
+    }
+
+    fn draw_cylinder(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
+        let x = node.x;
+        let y = node.y;
+        let w = node.width;
+        let h = node.height;
+
+        // Top rim using braille dots for a softer curve
+        let rim = if self.style.is_ascii() { '=' } else { '⠒' };
+        let top_left = if self.style.is_ascii() { '+' } else { '╭' };
+        let top_right = if self.style.is_ascii() { '+' } else { '╮' };
+        canvas.set_char(x, y, top_left);
+        for i in 1..w - 1 {
+            canvas.set_char(x + i, y, rim);
+        }
+        canvas.set_char(x + w - 1, y, top_right);
+
+        // Middle walls and label
+        let label_y = y + h / 2;
+        for row in 1..h - 1 {
+            let wall = if self.style.is_ascii() { '|' } else { '│' };
+            canvas.set_char(x, y + row, wall);
+            canvas.set_char(x + w - 1, y + row, wall);
+        }
+        let label_x = x + (w.saturating_sub(label.len())) / 2;
+        canvas.draw_text(label_x.max(x + 1), label_y, label);
+
+        // Bottom rim mirrors top
+        let bottom_left = if self.style.is_ascii() { '+' } else { '╰' };
+        let bottom_right = if self.style.is_ascii() { '+' } else { '╯' };
+        canvas.set_char(x, y + h - 1, bottom_left);
+        for i in 1..w - 1 {
+            canvas.set_char(x + i, y + h - 1, rim);
+        }
+        canvas.set_char(x + w - 1, y + h - 1, bottom_right);
+    }
+
+    fn draw_parallelogram(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
+        let x = node.x;
+        let y = node.y;
+        let w = node.width;
+        let h = node.height;
+
+        for row in 0..h {
+            let row_y = y + row;
+            let offset = row % 2; // small zig to hint slant without exceeding width
+            let left_x = x + offset;
+            let right_x = x + w - 1 - offset;
+
+            // Fill top/bottom with angled ends
+            if row == 0 {
+                canvas.set_char(left_x, row_y, '/');
+                for i in left_x + 1..right_x {
+                    let line = if self.style.is_ascii() { '-' } else { '─' };
+                    canvas.set_char(i, row_y, line);
+                }
+                canvas.set_char(right_x, row_y, '/');
+            } else if row == h - 1 {
+                canvas.set_char(left_x, row_y, '\\');
+                for i in left_x + 1..right_x {
+                    let line = if self.style.is_ascii() { '-' } else { '─' };
+                    canvas.set_char(i, row_y, line);
+                }
+                canvas.set_char(right_x, row_y, '\\');
+            } else {
+                canvas.set_char(left_x, row_y, '/');
+                canvas.set_char(right_x, row_y, '/');
+            }
+
+            if row == h / 2 {
+                let label_x = left_x + (w.saturating_sub(label.len())) / 2;
+                canvas.draw_text(label_x.max(left_x + 1), row_y, label);
+            }
+        }
+    }
+
+    fn draw_trapezoid(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
+        let x = node.x;
+        let y = node.y;
+        let w = node.width;
+        let h = node.height;
+
+        let top_padding = w.min(4) / 2;
+        let span_char = if self.style.is_ascii() { '-' } else { '⠒' };
+
+        // Top edge narrower
+        let top_left = x + top_padding;
+        let top_right = x + w - 1 - top_padding;
+        canvas.set_char(top_left, y, '/');
+        for i in top_left + 1..top_right {
+            canvas.set_char(i, y, span_char);
+        }
+        canvas.set_char(top_right, y, '\\');
+
+        // Sides
+        for row in 1..h - 1 {
+            let left_x = x + row.min(top_padding);
+            let right_x = x + w - 1 - row.min(top_padding);
+            canvas.set_char(left_x, y + row, '/');
+            canvas.set_char(right_x, y + row, '\\');
+            if row == h / 2 {
+                let label_x = left_x + (right_x.saturating_sub(left_x) + 1 - label.len()) / 2;
+                canvas.draw_text(label_x.max(left_x + 1), y + row, label);
+            }
+        }
+
+        // Base
+        let base_left = if self.style.is_ascii() { '+' } else { '└' };
+        let base_right = if self.style.is_ascii() { '+' } else { '┘' };
+        canvas.set_char(x, y + h - 1, base_left);
+        for i in x + 1..x + w - 1 {
+            let line = if self.style.is_ascii() { '-' } else { '─' };
+            canvas.set_char(i, y + h - 1, line);
+        }
+        canvas.set_char(x + w - 1, y + h - 1, base_right);
     }
 
     fn draw_diamond(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
@@ -245,16 +456,27 @@ impl FlowchartRenderer {
         let h = node.height;
 
         // Top
-        canvas.set_char(x, y, '(');
-        for i in 1..w - 1 {
-            canvas.set_char(x + i, y, '-');
+        let top_left = if self.style.is_ascii() { '(' } else { '(' };
+        let top_right = if self.style.is_ascii() { ')' } else { ')' };
+        for i in 0..w {
+            let ch = if i == 0 {
+                top_left
+            } else if i == w - 1 {
+                top_right
+            } else if self.style.is_ascii() {
+                '-'
+            } else {
+                '-'
+            };
+            canvas.set_char(x + i, y, ch);
         }
-        canvas.set_char(x + w - 1, y, ')');
 
         // Middle
         for row in 1..h - 1 {
-            canvas.set_char(x, y + row, '(');
-            canvas.set_char(x + w - 1, y + row, ')');
+            let side_left = if self.style.is_ascii() { '(' } else { '(' };
+            let side_right = if self.style.is_ascii() { ')' } else { ')' };
+            canvas.set_char(x, y + row, side_left);
+            canvas.set_char(x + w - 1, y + row, side_right);
         }
 
         // Label
@@ -263,11 +485,18 @@ impl FlowchartRenderer {
         canvas.draw_text(label_x.max(x + 1), label_y, label);
 
         // Bottom
-        canvas.set_char(x, y + h - 1, '(');
-        for i in 1..w - 1 {
-            canvas.set_char(x + i, y + h - 1, '-');
+        for i in 0..w {
+            let ch = if i == 0 {
+                '('
+            } else if i == w - 1 {
+                ')'
+            } else if self.style.is_ascii() {
+                '-'
+            } else {
+                '-'
+            };
+            canvas.set_char(x + i, y + h - 1, ch);
         }
-        canvas.set_char(x + w - 1, y + h - 1, ')');
     }
 
     fn draw_edge(
@@ -280,7 +509,7 @@ impl FlowchartRenderer {
             return;
         }
 
-        let chars = EdgeChars::for_type(edge_type);
+        let chars = EdgeChars::for_type(edge_type, self.style);
         if chars.is_invisible() {
             return;
         }
@@ -325,7 +554,9 @@ impl FlowchartRenderer {
             self.draw_horizontal_line(canvas, mid_y, x1, turn_x, &chars);
 
             // Corner at turn point
-            let corner = if x2 > x1 {
+            let corner = if self.style.is_ascii() {
+                '+'
+            } else if x2 > x1 {
                 if y2 > y1 { '┐' } else { '┘' }
             } else {
                 if y2 > y1 { '┌' } else { '└' }
@@ -346,6 +577,41 @@ impl FlowchartRenderer {
         }
     }
 
+    fn draw_edge_label(&self, canvas: &mut AsciiCanvas, waypoints: &[(usize, usize)], label: &str) {
+        if waypoints.len() < 2 || label.is_empty() {
+            return;
+        }
+
+        let (x1, y1) = waypoints[0];
+        let (x2, y2) = waypoints[waypoints.len() - 1];
+
+        if y1 == y2 {
+            // Horizontal edge: place label above if possible, otherwise below
+            let mid_x = (x1 + x2) / 2;
+            let start_x = mid_x.saturating_sub(label.len() / 2);
+            let label_y = if y1 > 0 { y1 - 1 } else { y1 + 1 };
+            canvas.draw_text(start_x, label_y, label);
+        } else if x1 == x2 {
+            // Vertical edge: place label to the right of the line
+            let mid_y = (y1 + y2) / 2;
+            let label_x = x1 + 1;
+            canvas.draw_text(label_x, mid_y, label);
+        } else {
+            // Orthogonal route: anchor at the corner where we turn
+            let corner_x = x2;
+            let corner_y = y1;
+            let label_y = if y2 > y1 {
+                corner_y + 1
+            } else if corner_y > 0 {
+                corner_y - 1
+            } else {
+                corner_y + 1
+            };
+            let start_x = corner_x.saturating_sub(label.len() / 2);
+            canvas.draw_text(start_x, label_y, label);
+        }
+    }
+
     fn draw_horizontal_line(
         &self,
         canvas: &mut AsciiCanvas,
@@ -356,6 +622,8 @@ impl FlowchartRenderer {
     ) {
         let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
         let going_right = x2 > x1;
+        let junction_t = if self.style.is_ascii() { '+' } else { if going_right { '├' } else { '┤' } };
+        let junction_cross = if self.style.is_ascii() { '+' } else { '┼' };
 
         for x in start..=end {
             let existing = canvas.get_char(x, y);
@@ -364,17 +632,15 @@ impl FlowchartRenderer {
 
             let new_char = match existing {
                 ' ' => chars.horizontal,
-                '│' | '┆' | '║' => {
+                '│' | '┆' | '║' | '|' => {
                     // T-junction or crossing
-                    if is_start {
-                        if going_right { '├' } else { '┤' }
-                    } else if is_end {
-                        if going_right { '┤' } else { '├' }
+                    if is_start || is_end {
+                        junction_t
                     } else {
-                        '┼' // True crossing in the middle
+                        junction_cross // True crossing in the middle
                     }
                 }
-                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' => existing, // Keep existing junctions
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '+' => existing, // Keep existing junctions
                 _ => chars.horizontal,
             };
             canvas.set_char(x, y, new_char);
@@ -391,6 +657,8 @@ impl FlowchartRenderer {
     ) {
         let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
         let going_down = y2 > y1;
+        let junction_t = if self.style.is_ascii() { '+' } else { if going_down { '┬' } else { '┴' } };
+        let junction_cross = if self.style.is_ascii() { '+' } else { '┼' };
 
         for y in start..=end {
             let existing = canvas.get_char(x, y);
@@ -399,17 +667,15 @@ impl FlowchartRenderer {
 
             let new_char = match existing {
                 ' ' => chars.vertical,
-                '─' | '┄' | '═' => {
+                '─' | '┄' | '═' | '-' => {
                     // T-junction or crossing
-                    if is_start {
-                        if going_down { '┬' } else { '┴' }
-                    } else if is_end {
-                        if going_down { '┴' } else { '┬' }
+                    if is_start || is_end {
+                        junction_t
                     } else {
-                        '┼' // True crossing in the middle
+                        junction_cross // True crossing in the middle
                     }
                 }
-                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' => existing, // Keep existing junctions
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '+' => existing, // Keep existing junctions
                 _ => chars.vertical,
             };
             canvas.set_char(x, y, new_char);
@@ -430,37 +696,79 @@ struct EdgeChars {
 }
 
 impl EdgeChars {
-    fn for_type(edge_type: EdgeType) -> Self {
+    fn for_type(edge_type: EdgeType, style: CharacterSet) -> Self {
+        let ascii = matches!(style, CharacterSet::Ascii | CharacterSet::Compact);
+        let dots = if ascii { '.' } else { '┄' };
         match edge_type {
             EdgeType::Arrow | EdgeType::Line | EdgeType::OpenArrow | EdgeType::CrossArrow => {
-                Self {
-                    horizontal: '─',
-                    vertical: '│',
-                    arrow_right: '▶',
-                    arrow_left: '◀',
-                    arrow_down: '▼',
-                    arrow_up: '▲',
-                    invisible: false,
+                if ascii {
+                    Self {
+                        horizontal: '-',
+                        vertical: '|',
+                        arrow_right: '>',
+                        arrow_left: '<',
+                        arrow_down: 'v',
+                        arrow_up: '^',
+                        invisible: false,
+                    }
+                } else {
+                    Self {
+                        horizontal: '─',
+                        vertical: '│',
+                        arrow_right: '▶',
+                        arrow_left: '◀',
+                        arrow_down: '▼',
+                        arrow_up: '▲',
+                        invisible: false,
+                    }
                 }
             }
-            EdgeType::DottedArrow | EdgeType::DottedLine => Self {
-                horizontal: '┄',
-                vertical: '┆',
-                arrow_right: '▷',
-                arrow_left: '◁',
-                arrow_down: '▽',
-                arrow_up: '△',
-                invisible: false,
-            },
-            EdgeType::ThickArrow | EdgeType::ThickLine => Self {
-                horizontal: '═',
-                vertical: '║',
-                arrow_right: '▶',
-                arrow_left: '◀',
-                arrow_down: '▼',
-                arrow_up: '▲',
-                invisible: false,
-            },
+            EdgeType::DottedArrow | EdgeType::DottedLine => {
+                if ascii {
+                    Self {
+                        horizontal: dots,
+                        vertical: ':',
+                        arrow_right: '>',
+                        arrow_left: '<',
+                        arrow_down: 'v',
+                        arrow_up: '^',
+                        invisible: false,
+                    }
+                } else {
+                    Self {
+                        horizontal: '┄',
+                        vertical: '┆',
+                        arrow_right: '▷',
+                        arrow_left: '◁',
+                        arrow_down: '▽',
+                        arrow_up: '△',
+                        invisible: false,
+                    }
+                }
+            }
+            EdgeType::ThickArrow | EdgeType::ThickLine => {
+                if ascii {
+                    Self {
+                        horizontal: '=',
+                        vertical: '|',
+                        arrow_right: '>',
+                        arrow_left: '<',
+                        arrow_down: 'v',
+                        arrow_up: '^',
+                        invisible: false,
+                    }
+                } else {
+                    Self {
+                        horizontal: '═',
+                        vertical: '║',
+                        arrow_right: '▶',
+                        arrow_left: '◀',
+                        arrow_down: '▼',
+                        arrow_up: '▲',
+                        invisible: false,
+                    }
+                }
+            }
             EdgeType::Invisible => Self {
                 horizontal: ' ',
                 vertical: ' ',
@@ -506,6 +814,9 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
                 .find(|e| e.from == edge.from_id && e.to == edge.to_id);
             let edge_type = edge_data.map(|e| e.edge_type).unwrap_or(EdgeType::Arrow);
             self.draw_edge(&mut canvas, &edge.waypoints, edge_type);
+            if let Some(label) = edge_data.and_then(|e| e.label.as_deref()) {
+                self.draw_edge_label(&mut canvas, &edge.waypoints, label);
+            }
         }
 
         // Draw nodes
@@ -534,7 +845,7 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::Direction;
+    use crate::core::{CharacterSet, Direction};
 
     #[test]
     fn test_basic_rendering() {
@@ -579,5 +890,34 @@ mod tests {
         let renderer = FlowchartRenderer::new();
         assert_eq!(renderer.name(), "ascii");
         assert_eq!(renderer.format(), "ascii");
+    }
+
+    #[test]
+    fn test_edge_labels_are_drawn() {
+        let mut db = FlowchartDatabase::with_direction(Direction::LeftRight);
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "End").unwrap();
+        db.add_labeled_edge("A", "B", EdgeType::Arrow, "yes")
+            .unwrap();
+
+        let renderer = FlowchartRenderer::new();
+        let output = renderer.render(&db).unwrap();
+
+        assert!(output.contains("yes"));
+    }
+
+    #[test]
+    fn test_ascii_style_uses_ascii_chars() {
+        let mut db = FlowchartDatabase::with_direction(Direction::LeftRight);
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "End").unwrap();
+        db.add_simple_edge("A", "B").unwrap();
+
+        let renderer = FlowchartRenderer::with_style(CharacterSet::Ascii);
+        let output = renderer.render(&db).unwrap();
+
+        assert!(output.contains('+'));
+        assert!(!output.contains('┌'));
+        assert!(output.contains('>') || output.contains('-'));
     }
 }

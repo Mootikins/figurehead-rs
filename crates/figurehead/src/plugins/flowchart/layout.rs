@@ -83,8 +83,9 @@ impl FlowchartLayoutAlgorithm {
             NodeShape::Rectangle | NodeShape::RoundedRect | NodeShape::Subroutine => (4, 0),
             NodeShape::Diamond => (6, 2), // Diamonds need more space
             NodeShape::Circle => (4, 0),
-            NodeShape::Hexagon => (4, 0),
-            _ => (4, 0),
+            NodeShape::Hexagon => (6, 0),
+            NodeShape::Asymmetric | NodeShape::Parallelogram | NodeShape::Trapezoid => (6, 0),
+            NodeShape::Cylinder => (6, 2),
         };
 
         let width = (label_width + extra_width).max(self.config.min_node_width);

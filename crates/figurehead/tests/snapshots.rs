@@ -85,7 +85,10 @@ fn test_all_shapes() {
             C{Diamond}
             D((Circle))
             E[[Subroutine]]
-            F{{Hexagon}}"#,
+            F{{Hexagon}}
+            G[(Cylinder)]
+            H[/Parallelogram/]
+            I[/Trapezoid\\]"#,
     );
 }
 
@@ -95,6 +98,11 @@ fn test_labeled_edges() {
         "labeled_edges",
         "graph TD; A-->|yes|B; A-->|no|C",
     );
+}
+
+#[test]
+fn test_asymmetric_shape() {
+    assert_fixture("asymmetric_shape", "graph LR; A>Flag]");
 }
 
 #[test]
