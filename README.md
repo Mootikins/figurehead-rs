@@ -46,11 +46,14 @@ Planned:
 # Basic conversion
 echo "graph TD\n    A --> B" | figurehead
 
-# Enable colors
-figurehead --colors input.mmd
+# Choose output character set (ascii|unicode|unicode-math|compact)
+figurehead convert --style ascii -i input.mmd
 
 # Output to file
 figurehead -i input.mmd -o output.txt
+
+# Respect FIGUREHEAD_STYLE environment variable
+FIGUREHEAD_STYLE=compact figurehead convert -i input.mmd
 ```
 
 ### Library Usage
