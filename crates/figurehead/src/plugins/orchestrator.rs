@@ -10,6 +10,10 @@ use crate::core::{Detector, Parser, Renderer};
 use crate::plugins::flowchart::FlowchartDatabase;
 
 /// Plugin orchestrator that coordinates the entire pipeline
+///
+/// The orchestrator wires detectors, parsers, layout, and renderer pieces
+/// together so callers can run a full pipeline without handling each trait
+/// manually.
 pub struct Orchestrator {
     detectors: HashMap<String, Box<dyn Detector>>,
     flowchart_parser: Option<crate::plugins::flowchart::FlowchartParser>,
@@ -74,6 +78,8 @@ impl Orchestrator {
     }
 
     /// Process input through the complete pipeline (for flowcharts only)
+    ///
+    /// Runs detector → parser → renderer using registered plugins.
     pub fn process(&self, input: &str) -> Result<String> {
         // Step 1: Detect diagram type (must be flowchart for now)
         let diagram_type = self.detect_diagram_type(input)?;
@@ -87,6 +93,8 @@ impl Orchestrator {
     }
 
     /// Process flowchart input directly (skip detection)
+    ///
+    /// Useful when the caller already knows the diagram type.
     pub fn process_flowchart(&self, input: &str) -> Result<String> {
         // Step 1: Parse the input
         let parser = self
