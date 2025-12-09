@@ -3,12 +3,14 @@
 //! Provides a CLI to convert Mermaid.js diagram markup into ASCII diagrams.
 
 use anyhow::{anyhow, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
+use figurehead::plugins::flowchart::FlowchartDetector;
 use figurehead::plugins::Orchestrator;
+use figurehead::CharacterSet;
 
 /// Figurehead - Convert Mermaid.js diagrams to ASCII art
 #[derive(Parser)]
@@ -40,6 +42,14 @@ pub enum Commands {
         /// Skip diagram type detection (treat as flowchart)
         #[arg(long)]
         skip_detection: bool,
+
+        /// Character set to use for rendering output
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = StyleChoice::Unicode
+        )]
+        style: StyleChoice,
     },
 
     /// Detect diagram type in input
@@ -64,6 +74,26 @@ pub enum Commands {
     },
 }
 
+/// Supported output character sets
+#[derive(Copy, Clone, Debug, ValueEnum, PartialEq, Eq)]
+pub enum StyleChoice {
+    Ascii,
+    Unicode,
+    UnicodeMath,
+    Compact,
+}
+
+impl From<StyleChoice> for CharacterSet {
+    fn from(value: StyleChoice) -> Self {
+        match value {
+            StyleChoice::Ascii => CharacterSet::Ascii,
+            StyleChoice::Unicode => CharacterSet::Unicode,
+            StyleChoice::UnicodeMath => CharacterSet::UnicodeMath,
+            StyleChoice::Compact => CharacterSet::Compact,
+        }
+    }
+}
+
 /// Main CLI application
 pub struct FigureheadApp {
     orchestrator: Orchestrator,
@@ -73,12 +103,25 @@ impl FigureheadApp {
     /// Create a new application instance
     pub fn new() -> Self {
         Self {
-            orchestrator: Orchestrator::with_flowchart_plugins(),
+            orchestrator: Self::build_orchestrator(StyleChoice::Unicode),
         }
     }
 
+    /// Create a new application instance with a specific renderer style
+    pub fn with_style(style: StyleChoice) -> Self {
+        Self {
+            orchestrator: Self::build_orchestrator(style),
+        }
+    }
+
+    fn build_orchestrator(style: StyleChoice) -> Orchestrator {
+        let mut orchestrator = Orchestrator::with_flowchart_plugins_and_style(style.into());
+        orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+        orchestrator
+    }
+
     /// Run the application with the given CLI arguments
-    pub fn run(&self, cli: Cli) -> Result<()> {
+    pub fn run(&mut self, cli: Cli) -> Result<()> {
         if cli.verbose {
             eprintln!("Figurehead v{}", env!("CARGO_PKG_VERSION"));
         }
@@ -88,7 +131,8 @@ impl FigureheadApp {
                 input,
                 output,
                 skip_detection,
-            } => self.convert_command(input, output, skip_detection, cli.verbose),
+                style,
+            } => self.convert_command(input, output, skip_detection, style, cli.verbose),
             Commands::Detect { input } => self.detect_command(input, cli.verbose),
             Commands::Types { json } => self.types_command(json, cli.verbose),
             Commands::Validate { input } => self.validate_command(input, cli.verbose),
@@ -97,10 +141,11 @@ impl FigureheadApp {
 
     /// Handle the convert command
     fn convert_command(
-        &self,
+        &mut self,
         input: Option<PathBuf>,
         output: Option<PathBuf>,
         skip_detection: bool,
+        style: StyleChoice,
         verbose: bool,
     ) -> Result<()> {
         // Read input
@@ -109,6 +154,9 @@ impl FigureheadApp {
         if verbose {
             eprintln!("Read {} bytes of input", content.len());
         }
+
+        // Apply style to renderer
+        self.orchestrator = Self::build_orchestrator(style);
 
         // Process the diagram
         let result = if skip_detection {
@@ -303,6 +351,8 @@ mod tests {
             "test.mmd",
             "--output",
             "output.txt",
+            "--style",
+            "ascii",
         ];
         let cli = Cli::try_parse_from(args).unwrap();
 
@@ -311,10 +361,12 @@ mod tests {
                 input,
                 output,
                 skip_detection,
+                style,
             } => {
                 assert_eq!(input.unwrap().to_string_lossy(), "test.mmd");
                 assert_eq!(output.unwrap().to_string_lossy(), "output.txt");
                 assert!(!skip_detection);
+                assert_eq!(style, StyleChoice::Ascii);
             }
             _ => panic!("Expected Convert command"),
         }

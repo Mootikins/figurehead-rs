@@ -30,11 +30,18 @@ impl Orchestrator {
 
     /// Create a new orchestrator with all flowchart plugins registered
     pub fn with_flowchart_plugins() -> Self {
+        Self::with_flowchart_plugins_and_style(crate::core::CharacterSet::default())
+    }
+
+    /// Create a new orchestrator with flowchart plugins and a specific renderer style
+    pub fn with_flowchart_plugins_and_style(style: crate::core::CharacterSet) -> Self {
         Self {
             detectors: HashMap::new(),
             flowchart_parser: Some(crate::plugins::flowchart::FlowchartParser::new()),
             flowchart_layout: Some(crate::plugins::flowchart::FlowchartLayoutAlgorithm::new()),
-            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::new()),
+            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_style(
+                style,
+            )),
         }
     }
 
