@@ -7,9 +7,7 @@ use figurehead::core::logging::init_logging;
 use figurehead::prelude::*;
 use figurehead::{parse, render};
 use tracing::{info, span, Level};
-use tracing_subscriber::fmt::TestWriter;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::Registry;
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[test]
 fn test_tracing_spans_created_during_pipeline() {

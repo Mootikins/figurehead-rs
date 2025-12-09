@@ -9,11 +9,11 @@
 //! ```rust
 //! use figurehead::core::logging::init_logging;
 //!
-//! // Initialize with default settings
-//! init_logging(None, None)?;
+//! // Initialize with default settings (may fail if already initialized)
+//! let _ = init_logging(None, None);
 //!
 //! // Or with custom level and format
-//! init_logging(Some("debug"), Some("pretty"))?;
+//! let _ = init_logging(Some("debug"), Some("pretty"));
 //! ```
 //!
 //! # Log Levels
@@ -47,26 +47,28 @@
 //! to provide visibility into the processing pipeline:
 //!
 //! ```rust
-//! use tracing::{debug, info, span, trace, warn, Level};
+//! use tracing::{debug, info, span, trace, Level};
 //!
-//! impl Parser<MyDatabase> for MyParser {
-//!     fn parse(&self, input: &str, database: &mut MyDatabase) -> Result<()> {
-//!         let parse_span = span!(Level::INFO, "parse_mydiagram", input_len = input.len());
-//!         let _enter = parse_span.enter();
+//! // Example: Adding tracing to a parser implementation
+//! fn parse_with_tracing(input: &str) -> Result<(), Box<dyn std::error::Error>> {
+//!     let parse_span = span!(Level::INFO, "parse_mydiagram", input_len = input.len());
+//!     let _enter = parse_span.enter();
 //!
-//!         trace!("Starting parsing");
+//!     trace!("Starting parsing");
 //!
-//!         // Parse stages
-//!         let stage_span = span!(Level::DEBUG, "parse_stage");
-//!         let _stage_enter = stage_span.enter();
-//!         // ... parsing logic ...
-//!         debug!(node_count = database.node_count(), "Parsed nodes");
-//!         drop(_stage_enter);
+//!     // Parse stages
+//!     let stage_span = span!(Level::DEBUG, "parse_stage");
+//!     let _stage_enter = stage_span.enter();
+//!     // ... parsing logic ...
+//!     debug!(input_len = input.len(), "Parsed input");
+//!     drop(_stage_enter);
 //!
-//!         info!("Parsing completed");
-//!         Ok(())
-//!     }
+//!     info!("Parsing completed");
+//!     Ok(())
 //! }
+//!
+//! // Note: This example doesn't actually parse anything, just demonstrates tracing usage
+//! # parse_with_tracing("example input").unwrap();
 //! ```
 //!
 //! # Filtering Logs
@@ -145,11 +147,11 @@ impl LogFormat {
 /// ```rust
 /// use figurehead::core::logging::init_logging;
 ///
-/// // Initialize with defaults
-/// init_logging(None, None)?;
+/// // Initialize with defaults (may fail if already initialized)
+/// let _ = init_logging(None, None);
 ///
 /// // Initialize with custom settings
-/// init_logging(Some("debug"), Some("pretty"))?;
+/// let _ = init_logging(Some("debug"), Some("pretty"));
 /// ```
 pub fn init_logging(
     level: Option<&str>,

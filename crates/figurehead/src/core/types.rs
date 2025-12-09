@@ -385,4 +385,39 @@ mod tests {
         assert_eq!(CharacterSet::UnicodeMath.to_string(), "unicode-math");
         assert_eq!(CharacterSet::Compact.to_string(), "compact");
     }
+
+    #[test]
+    fn test_node_shape_display() {
+        assert_eq!(NodeShape::Rectangle.to_string(), "rectangle");
+        assert_eq!(NodeShape::RoundedRect.to_string(), "rounded");
+        assert_eq!(NodeShape::Circle.to_string(), "circle");
+        assert_eq!(NodeShape::Diamond.to_string(), "diamond");
+        assert_eq!(NodeShape::Hexagon.to_string(), "hexagon");
+        assert_eq!(NodeShape::Subroutine.to_string(), "subroutine");
+        assert_eq!(NodeShape::Cylinder.to_string(), "cylinder");
+        assert_eq!(NodeShape::Asymmetric.to_string(), "asymmetric");
+        assert_eq!(NodeShape::Parallelogram.to_string(), "parallelogram");
+        assert_eq!(NodeShape::Trapezoid.to_string(), "trapezoid");
+    }
+
+    #[test]
+    fn test_edge_type_display() {
+        assert_eq!(EdgeType::Arrow.to_string(), "-->");
+        assert_eq!(EdgeType::Line.to_string(), "---");
+        assert_eq!(EdgeType::DottedArrow.to_string(), "-.->");
+        assert_eq!(EdgeType::DottedLine.to_string(), "-.-");
+        assert_eq!(EdgeType::ThickArrow.to_string(), "==>");
+        assert_eq!(EdgeType::ThickLine.to_string(), "===");
+        assert_eq!(EdgeType::Invisible.to_string(), "~~~");
+        assert_eq!(EdgeType::OpenArrow.to_string(), "--o");
+        assert_eq!(EdgeType::CrossArrow.to_string(), "--x");
+    }
+
+    #[test]
+    fn test_direction_display() {
+        assert_eq!(Direction::TopDown.to_string(), "TD");
+        assert_eq!(Direction::LeftRight.to_string(), "LR");
+        assert_eq!(Direction::RightLeft.to_string(), "RL");
+        assert_eq!(Direction::BottomUp.to_string(), "BT");
+    }
 }
