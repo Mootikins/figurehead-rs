@@ -32,7 +32,7 @@ publish-cli:
 # Build WASM module for web examples
 wasm-build:
 	@echo "Building WASM module..."
-	wasm-pack build --target web --out-dir examples/web-editor/pkg
+	wasm-pack build crates/figurehead --target web --out-dir ../../examples/web-editor/pkg
 
 # Run web server for examples
 web-server:
