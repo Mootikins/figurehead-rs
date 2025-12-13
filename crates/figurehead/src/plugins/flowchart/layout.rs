@@ -27,6 +27,12 @@ pub struct PositionedEdge {
     pub from_id: String,
     pub to_id: String,
     pub waypoints: Vec<(usize, usize)>,
+    /// For grouped edges from same source, the shared junction point
+    pub junction: Option<(usize, usize)>,
+    /// Index within the edge group (0 = first/leftmost in TD)
+    pub group_index: Option<usize>,
+    /// Total edges in this group
+    pub group_size: Option<usize>,
 }
 
 /// Layout output containing positioned elements
@@ -389,6 +395,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                     from_id: edge.from.clone(),
                     to_id: edge.to.clone(),
                     waypoints: vec![(exit_x, exit_y), (entry_x, entry_y)],
+                    junction: None,
+                    group_index: None,
+                    group_size: None,
                 });
             }
         }
