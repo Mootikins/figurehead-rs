@@ -51,11 +51,11 @@ pub struct LayoutConfig {
 impl Default for LayoutConfig {
     fn default() -> Self {
         Self {
-            node_sep: 4,
-            rank_sep: 8,
-            min_node_width: 8,
+            node_sep: 1,      // was 4: horizontal gap between nodes
+            rank_sep: 3,      // was 8: vertical gap between layers
+            min_node_width: 5,
             min_node_height: 3,
-            padding: 2,
+            padding: 1,       // was 2: canvas edge padding
         }
     }
 }
