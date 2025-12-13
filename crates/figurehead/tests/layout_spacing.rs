@@ -111,3 +111,27 @@ fn test_split_edges_are_grouped() {
         .collect();
     assert!(indices.contains(&0) && indices.contains(&1));
 }
+
+use figurehead::core::Renderer;
+use figurehead::plugins::flowchart::FlowchartRenderer;
+
+#[test]
+fn test_split_renders_junction_character() {
+    let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+    db.add_simple_node("D", "D").unwrap();
+    db.add_simple_node("Y", "Y").unwrap();
+    db.add_simple_node("N", "N").unwrap();
+    db.add_simple_edge("D", "Y").unwrap();
+    db.add_simple_edge("D", "N").unwrap();
+
+    let renderer = FlowchartRenderer::new();
+    let output = renderer.render(&db).unwrap();
+
+    // Should contain a T-junction character
+    assert!(
+        output.contains('┬') || output.contains('┴') ||
+        output.contains('├') || output.contains('┤') ||
+        output.contains('+'),  // ASCII fallback
+        "Output should contain junction character:\n{}", output
+    );
+}

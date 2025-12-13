@@ -733,6 +733,153 @@ impl FlowchartRenderer {
         }
     }
 
+    fn draw_junction(
+        &self,
+        canvas: &mut AsciiCanvas,
+        junction: (usize, usize),
+        direction: crate::core::Direction,
+        _group_size: usize,
+    ) {
+        let (jx, jy) = junction;
+
+        // Draw the junction point
+        let junction_char = match direction {
+            crate::core::Direction::TopDown => if self.style.is_ascii() { '+' } else { '┬' },
+            crate::core::Direction::BottomUp => if self.style.is_ascii() { '+' } else { '┴' },
+            crate::core::Direction::LeftRight => if self.style.is_ascii() { '+' } else { '├' },
+            crate::core::Direction::RightLeft => if self.style.is_ascii() { '+' } else { '┤' },
+        };
+        canvas.set_char(jx, jy, junction_char);
+    }
+
+    fn draw_split_edge(
+        &self,
+        canvas: &mut AsciiCanvas,
+        from_center: (usize, usize),
+        junction: (usize, usize),
+        to_center: (usize, usize),
+        edge_type: EdgeType,
+        direction: crate::core::Direction,
+    ) {
+        let chars = EdgeChars::for_type(edge_type, self.style);
+        if chars.is_invisible() {
+            return;
+        }
+
+        let (fx, fy) = from_center;
+        let (jx, jy) = junction;
+        let (tx, ty) = to_center;
+        let has_arrow = edge_type.has_arrow();
+
+        match direction {
+            crate::core::Direction::TopDown => {
+                // Vertical from source to junction
+                self.draw_vertical_line(canvas, fx, fy, jy, &chars);
+                // Horizontal from junction toward target
+                let corner_x = tx;
+                if corner_x != jx {
+                    self.draw_horizontal_line(canvas, jy, jx.min(corner_x), jx.max(corner_x), &chars);
+                }
+                // Corner
+                let corner = if self.style.is_ascii() {
+                    '+'
+                } else if tx < jx {
+                    '┐'
+                } else if tx > jx {
+                    '┌'
+                } else {
+                    '│'
+                };
+                if corner_x != jx {
+                    canvas.set_char(corner_x, jy, corner);
+                }
+                // Vertical down to target
+                let end_y = if has_arrow { ty.saturating_sub(1) } else { ty };
+                self.draw_vertical_line(canvas, corner_x, jy, end_y, &chars);
+                if has_arrow {
+                    canvas.set_char(corner_x, end_y, chars.arrow_down);
+                }
+            }
+            crate::core::Direction::BottomUp => {
+                // Similar but reversed
+                self.draw_vertical_line(canvas, fx, jy, fy, &chars);
+                let corner_x = tx;
+                if corner_x != jx {
+                    self.draw_horizontal_line(canvas, jy, jx.min(corner_x), jx.max(corner_x), &chars);
+                }
+                let corner = if self.style.is_ascii() {
+                    '+'
+                } else if tx < jx {
+                    '┘'
+                } else if tx > jx {
+                    '└'
+                } else {
+                    '│'
+                };
+                if corner_x != jx {
+                    canvas.set_char(corner_x, jy, corner);
+                }
+                let end_y = if has_arrow { ty + 1 } else { ty };
+                self.draw_vertical_line(canvas, corner_x, end_y, jy, &chars);
+                if has_arrow {
+                    canvas.set_char(corner_x, end_y, chars.arrow_up);
+                }
+            }
+            crate::core::Direction::LeftRight => {
+                // Horizontal from source to junction
+                self.draw_horizontal_line(canvas, fy, fx, jx, &chars);
+                // Vertical from junction toward target
+                let corner_y = ty;
+                if corner_y != jy {
+                    self.draw_vertical_line(canvas, jx, jy.min(corner_y), jy.max(corner_y), &chars);
+                }
+                let corner = if self.style.is_ascii() {
+                    '+'
+                } else if ty < jy {
+                    '└'
+                } else if ty > jy {
+                    '┌'
+                } else {
+                    '─'
+                };
+                if corner_y != jy {
+                    canvas.set_char(jx, corner_y, corner);
+                }
+                // Horizontal to target
+                let end_x = if has_arrow { tx.saturating_sub(1) } else { tx };
+                self.draw_horizontal_line(canvas, corner_y, jx, end_x, &chars);
+                if has_arrow {
+                    canvas.set_char(end_x, corner_y, chars.arrow_right);
+                }
+            }
+            crate::core::Direction::RightLeft => {
+                // Similar but reversed
+                self.draw_horizontal_line(canvas, fy, jx, fx, &chars);
+                let corner_y = ty;
+                if corner_y != jy {
+                    self.draw_vertical_line(canvas, jx, jy.min(corner_y), jy.max(corner_y), &chars);
+                }
+                let corner = if self.style.is_ascii() {
+                    '+'
+                } else if ty < jy {
+                    '┘'
+                } else if ty > jy {
+                    '┐'
+                } else {
+                    '─'
+                };
+                if corner_y != jy {
+                    canvas.set_char(jx, corner_y, corner);
+                }
+                let end_x = if has_arrow { tx + 1 } else { tx };
+                self.draw_horizontal_line(canvas, corner_y, end_x, jx, &chars);
+                if has_arrow {
+                    canvas.set_char(end_x, corner_y, chars.arrow_left);
+                }
+            }
+        }
+    }
+
     fn draw_horizontal_line(
         &self,
         canvas: &mut AsciiCanvas,
@@ -948,6 +1095,10 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
         let edge_span = span!(Level::DEBUG, "draw_edges", edge_count = layout.edges.len());
         let _edge_enter = edge_span.enter();
         let mut edges_drawn = 0;
+
+        // Track which junctions we've drawn
+        let mut drawn_junctions: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+
         for edge in &layout.edges {
             let edge_data = database
                 .edges()
@@ -960,9 +1111,42 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
                 edge_type = ?edge_type,
                 edge_label = ?edge_label,
                 waypoint_count = edge.waypoints.len(),
+                has_junction = edge.junction.is_some(),
                 "Drawing edge"
             );
-            self.draw_edge(&mut canvas, &edge.waypoints, edge_type);
+
+            if let Some(junction) = edge.junction {
+                // Draw junction if not already drawn
+                if !drawn_junctions.contains(&junction) {
+                    self.draw_junction(&mut canvas, junction, database.direction(), edge.group_size.unwrap_or(1));
+                    drawn_junctions.insert(junction);
+                }
+
+                // Draw split edge through junction
+                let from_node = layout.nodes.iter().find(|n| n.id == edge.from_id);
+                let to_node = layout.nodes.iter().find(|n| n.id == edge.to_id);
+
+                if let (Some(from), Some(to)) = (from_node, to_node) {
+                    let from_center = match database.direction() {
+                        crate::core::Direction::TopDown => (from.x + from.width / 2, from.y + from.height),
+                        crate::core::Direction::BottomUp => (from.x + from.width / 2, from.y),
+                        crate::core::Direction::LeftRight => (from.x + from.width, from.y + from.height / 2),
+                        crate::core::Direction::RightLeft => (from.x, from.y + from.height / 2),
+                    };
+                    let to_center = match database.direction() {
+                        crate::core::Direction::TopDown => (to.x + to.width / 2, to.y),
+                        crate::core::Direction::BottomUp => (to.x + to.width / 2, to.y + to.height),
+                        crate::core::Direction::LeftRight => (to.x, to.y + to.height / 2),
+                        crate::core::Direction::RightLeft => (to.x + to.width, to.y + to.height / 2),
+                    };
+
+                    self.draw_split_edge(&mut canvas, from_center, junction, to_center, edge_type, database.direction());
+                }
+            } else {
+                // Regular edge
+                self.draw_edge(&mut canvas, &edge.waypoints, edge_type);
+            }
+
             if let Some(label) = edge_label {
                 self.draw_edge_label(&mut canvas, &edge.waypoints, label);
             }
