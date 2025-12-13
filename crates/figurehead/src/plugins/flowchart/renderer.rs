@@ -408,46 +408,166 @@ impl FlowchartRenderer {
         let w = node.width;
         let h = node.height;
 
-        // Diamond structure for height 5:
-        //     /\        row 0: top point
-        //    /  \       row 1: expanding
-        //   <text>      row 2: middle (widest, with label)
-        //    \  /       row 3: contracting
-        //     \/        row 4: bottom point
+        match self.style {
+            CharacterSet::Compact => {
+                // Compact diamond using box drawing diagonals ╱╲ (U+2571-2572):
+                //   _╱╲_
+                //   ◁ X ▷
+                //   ‾╲╱‾
+                let mid_y = y + h / 2;
+                let center_x = x + w / 2;
 
-        let mid_y = y + h / 2;
-        let half_h = h / 2;
-        let center_x = x + w / 2;
+                // Top row: underscores with ╱╲ cap
+                for i in (x + 1)..center_x {
+                    canvas.set_char(i, y, '_');
+                }
+                canvas.set_char(center_x, y, '╱');
+                canvas.set_char(center_x + 1, y, '╲');
+                for i in (center_x + 2)..(x + w - 1) {
+                    canvas.set_char(i, y, '_');
+                }
 
-        // Top point
-        canvas.set_char(center_x, y, '/');
-        canvas.set_char(center_x + 1, y, '\\');
+                // Middle row: triangle points and label
+                canvas.set_char(x, mid_y, '◁');
+                canvas.set_char(x + w - 1, mid_y, '▷');
+                let label_x = x + (w.saturating_sub(label.len())) / 2;
+                canvas.draw_text(label_x.max(x + 1), mid_y, label);
 
-        // Upper expanding rows (between top point and middle)
-        for row in 1..half_h {
-            let left_x = center_x.saturating_sub(row);
-            let right_x = center_x + 1 + row;
-            canvas.set_char(left_x, y + row, '/');
-            canvas.set_char(right_x, y + row, '\\');
+                // Bottom row: overlines with ╲╱ cap
+                let bot_y = y + h - 1;
+                for i in (x + 1)..center_x {
+                    canvas.set_char(i, bot_y, '‾');
+                }
+                canvas.set_char(center_x, bot_y, '╲');
+                canvas.set_char(center_x + 1, bot_y, '╱');
+                for i in (center_x + 2)..(x + w - 1) {
+                    canvas.set_char(i, bot_y, '‾');
+                }
+            }
+            CharacterSet::UnicodeMath => {
+                // UnicodeMath diamond with staggered ⟋⟍ diagonals and ⧼⧽ points
+                //
+                // Short (h <= 3): Compact bar style
+                //   __⟋⟍__
+                //   ⧼ X  ⧽
+                //   ‾‾⟍⟋‾‾
+                //
+                // Tall (h > 3): Full staggered diagonals
+                //       ⟋⟍
+                //     ⟋    ⟍
+                //    ⧼  X   ⧽
+                //     ⟍    ⟋
+                //       ⟍⟋
+                let mid_y = y + h / 2;
+                let center_x = x + w / 2;
+
+                if h <= 3 {
+                    // Compact: 3-row bar style with center cap
+                    // Top bar: underscores with ⟋⟍ cap
+                    for i in (x + 1)..center_x {
+                        canvas.set_char(i, y, '_');
+                    }
+                    canvas.set_char(center_x, y, '⟋');
+                    canvas.set_char(center_x + 1, y, '⟍');
+                    for i in (center_x + 2)..(x + w - 1) {
+                        canvas.set_char(i, y, '_');
+                    }
+
+                    // Middle row: brackets and label
+                    canvas.set_char(x, mid_y, '⧼');
+                    canvas.set_char(x + w - 1, mid_y, '⧽');
+                    let label_x = x + (w.saturating_sub(label.len())) / 2;
+                    canvas.draw_text(label_x.max(x + 1), mid_y, label);
+
+                    // Bottom bar: overlines with ⟍⟋ cap
+                    let bot_y = y + h - 1;
+                    for i in (x + 1)..center_x {
+                        canvas.set_char(i, bot_y, '‾');
+                    }
+                    canvas.set_char(center_x, bot_y, '⟍');
+                    canvas.set_char(center_x + 1, bot_y, '⟋');
+                    for i in (center_x + 2)..(x + w - 1) {
+                        canvas.set_char(i, bot_y, '‾');
+                    }
+                } else {
+                    // Tall: full staggered diagonals
+                    let half_h = h / 2;
+
+                    // Top point
+                    canvas.set_char(center_x, y, '⟋');
+                    canvas.set_char(center_x + 1, y, '⟍');
+
+                    // Upper expanding rows - stagger 2 chars per row for shallower angle
+                    for row in 1..half_h {
+                        let offset = row * 2;
+                        let left_x = center_x.saturating_sub(offset);
+                        let right_x = center_x + 1 + offset;
+                        canvas.set_char(left_x, y + row, '⟋');
+                        canvas.set_char(right_x, y + row, '⟍');
+                    }
+
+                    // Middle row with brackets and label
+                    canvas.set_char(x, mid_y, '⧼');
+                    canvas.set_char(x + w - 1, mid_y, '⧽');
+                    let label_x = x + (w.saturating_sub(label.len())) / 2;
+                    canvas.draw_text(label_x.max(x + 1), mid_y, label);
+
+                    // Lower contracting rows - staggered
+                    for row in 1..half_h {
+                        let offset = (half_h - row) * 2;
+                        let left_x = center_x.saturating_sub(offset);
+                        let right_x = center_x + 1 + offset;
+                        canvas.set_char(left_x, mid_y + row, '⟍');
+                        canvas.set_char(right_x, mid_y + row, '⟋');
+                    }
+
+                    // Bottom point
+                    canvas.set_char(center_x, y + h - 1, '⟍');
+                    canvas.set_char(center_x + 1, y + h - 1, '⟋');
+                }
+            }
+            _ => {
+                // Default ASCII/Unicode: steep /\ diagonals
+                //     /\        row 0: top point
+                //    /  \       row 1: expanding
+                //   <text>      row 2: middle (widest, with label)
+                //    \  /       row 3: contracting
+                //     \/        row 4: bottom point
+                let mid_y = y + h / 2;
+                let half_h = h / 2;
+                let center_x = x + w / 2;
+
+                // Top point
+                canvas.set_char(center_x, y, '/');
+                canvas.set_char(center_x + 1, y, '\\');
+
+                // Upper expanding rows (between top point and middle)
+                for row in 1..half_h {
+                    let left_x = center_x.saturating_sub(row);
+                    let right_x = center_x + 1 + row;
+                    canvas.set_char(left_x, y + row, '/');
+                    canvas.set_char(right_x, y + row, '\\');
+                }
+
+                // Middle row with label
+                canvas.set_char(x, mid_y, '<');
+                canvas.set_char(x + w - 1, mid_y, '>');
+                let label_x = x + (w.saturating_sub(label.len())) / 2;
+                canvas.draw_text(label_x.max(x + 1), mid_y, label);
+
+                // Lower contracting rows (between middle and bottom point)
+                for row in 1..half_h {
+                    let left_x = center_x.saturating_sub(half_h - row);
+                    let right_x = center_x + 1 + (half_h - row);
+                    canvas.set_char(left_x, mid_y + row, '\\');
+                    canvas.set_char(right_x, mid_y + row, '/');
+                }
+
+                // Bottom point
+                canvas.set_char(center_x, y + h - 1, '\\');
+                canvas.set_char(center_x + 1, y + h - 1, '/');
+            }
         }
-
-        // Middle row with label
-        canvas.set_char(x, mid_y, '<');
-        canvas.set_char(x + w - 1, mid_y, '>');
-        let label_x = x + (w.saturating_sub(label.len())) / 2;
-        canvas.draw_text(label_x.max(x + 1), mid_y, label);
-
-        // Lower contracting rows (between middle and bottom point)
-        for row in 1..half_h {
-            let left_x = center_x.saturating_sub(half_h - row);
-            let right_x = center_x + 1 + (half_h - row);
-            canvas.set_char(left_x, mid_y + row, '\\');
-            canvas.set_char(right_x, mid_y + row, '/');
-        }
-
-        // Bottom point
-        canvas.set_char(center_x, y + h - 1, '\\');
-        canvas.set_char(center_x + 1, y + h - 1, '/');
     }
 
     fn draw_circle(&self, canvas: &mut AsciiCanvas, node: &PositionedNode, label: &str) {
