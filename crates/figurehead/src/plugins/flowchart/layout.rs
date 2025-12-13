@@ -57,8 +57,8 @@ pub struct LayoutConfig {
 impl Default for LayoutConfig {
     fn default() -> Self {
         Self {
-            node_sep: 1,      // was 4: horizontal gap between nodes
-            rank_sep: 3,      // was 8: vertical gap between layers
+            node_sep: 1,      // was 4: horizontal gap between nodes in same layer
+            rank_sep: 4,      // gap between layers (need 4 for visible edge lines in LR splits)
             min_node_width: 5,
             min_node_height: 3,
             padding: 1,       // was 2: canvas edge padding
@@ -183,24 +183,11 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         debug!(max_layer, layer_count = layer_nodes.len(), "Assigned nodes to layers");
         drop(_layer_enter);
 
-        // Normalize node sizes within each layer based on direction
+        // Normalize node widths within layers for LR/RL direction (for alignment)
+        // TD/BU keeps natural heights - shapes extend as needed
         match direction {
             Direction::TopDown | Direction::BottomUp => {
-                // Normalize heights within layers
-                let mut layer_max_heights: HashMap<usize, usize> = HashMap::new();
-                for &node_id in &sorted {
-                    if let (Some(&layer), Some(&(_, height))) = (layers.get(node_id), node_sizes.get(node_id)) {
-                        let max = layer_max_heights.entry(layer).or_insert(0);
-                        *max = (*max).max(height);
-                    }
-                }
-                for &node_id in &sorted {
-                    if let (Some(&layer), Some((width, _))) = (layers.get(node_id), node_sizes.get(node_id).copied()) {
-                        if let Some(&max_height) = layer_max_heights.get(&layer) {
-                            node_sizes.insert(node_id, (width, max_height));
-                        }
-                    }
-                }
+                // Keep natural heights - no normalization needed
             }
             Direction::LeftRight | Direction::RightLeft => {
                 // Normalize widths within layers

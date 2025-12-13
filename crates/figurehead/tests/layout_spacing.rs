@@ -2,7 +2,7 @@ use figurehead::plugins::flowchart::{FlowchartDatabase, FlowchartLayoutAlgorithm
 use figurehead::core::{Direction, LayoutAlgorithm};
 
 #[test]
-fn test_compact_vertical_gap_is_three() {
+fn test_compact_vertical_gap_is_four() {
     let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
     db.add_simple_node("A", "A").unwrap();
     db.add_simple_node("B", "B").unwrap();
@@ -14,10 +14,10 @@ fn test_compact_vertical_gap_is_three() {
     let node_a = result.nodes.iter().find(|n| n.id == "A").unwrap();
     let node_b = result.nodes.iter().find(|n| n.id == "B").unwrap();
 
-    // B should start 3 spaces after A ends (gap of 3)
-    assert_eq!(node_b.y, node_a.y + node_a.height + 3,
-        "Vertical gap should be 3: B.y={} should equal A.y+A.height+3={}",
-        node_b.y, node_a.y + node_a.height + 3);
+    // B should start 4 spaces after A ends (gap of 4 = rank_sep)
+    assert_eq!(node_b.y, node_a.y + node_a.height + 4,
+        "Vertical gap should be 4: B.y={} should equal A.y+A.height+4={}",
+        node_b.y, node_a.y + node_a.height + 4);
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn test_compact_horizontal_gap_is_one() {
 }
 
 #[test]
-fn test_td_layer_nodes_have_same_height() {
+fn test_td_layer_nodes_keep_natural_heights() {
     use figurehead::core::NodeShape;
 
     let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
@@ -58,9 +58,9 @@ fn test_td_layer_nodes_have_same_height() {
     let node_a = result.nodes.iter().find(|n| n.id == "A").unwrap();
     let node_b = result.nodes.iter().find(|n| n.id == "B").unwrap();
 
-    assert_eq!(node_a.height, node_b.height,
-        "Nodes in same layer should have same height: A={}, B={}",
-        node_a.height, node_b.height);
+    // TD direction keeps natural heights - no normalization
+    assert_eq!(node_a.height, 3, "Rectangle should have natural height 3");
+    assert_eq!(node_b.height, 5, "Diamond should have natural height 5");
 }
 
 #[test]

@@ -718,18 +718,49 @@ impl FlowchartRenderer {
             let label_x = x1 + 1;
             canvas.draw_text(label_x, mid_y, label);
         } else {
-            // Orthogonal route: anchor at the corner where we turn
-            let corner_x = x2;
-            let corner_y = y1;
-            let label_y = if y2 > y1 {
-                corner_y + 1
-            } else if corner_y > 0 {
-                corner_y - 1
+            // Orthogonal route (including splits): place label on the segment near target
+            if y2 > y1 {
+                // Going down: place label above the arrow, centered on the branch
+                let label_y = y2.saturating_sub(2); // One row above arrow
+                let label_x = x2.saturating_sub(label.len() / 2);
+                canvas.draw_text(label_x, label_y, label);
+            } else if y2 < y1 {
+                // Going up: place label on the outside of the branch
+                let label_y = y2 + 1; // Arrow row
+                if x2 < x1 {
+                    // Left branch: label to the left (with 1 char gap)
+                    let label_x = x2.saturating_sub(label.len() + 1);
+                    canvas.draw_text(label_x, label_y, label);
+                } else {
+                    // Right branch: label to the right
+                    let label_x = x2 + 1;
+                    canvas.draw_text(label_x, label_y, label);
+                }
+            } else if x2 > x1 {
+                // Going right: place label above/below based on position
+                if y2 < y1 {
+                    // Upper branch: label above
+                    let label_y = y2.saturating_sub(1);
+                    let start_x = x2.saturating_sub(label.len());
+                    canvas.draw_text(start_x, label_y, label);
+                } else {
+                    // Lower branch or straight: label below
+                    let label_y = y2 + 1;
+                    let start_x = x2.saturating_sub(label.len());
+                    canvas.draw_text(start_x, label_y, label);
+                }
             } else {
-                corner_y + 1
-            };
-            let start_x = corner_x.saturating_sub(label.len() / 2);
-            canvas.draw_text(start_x, label_y, label);
+                // Going left: place label above/below based on position
+                if y2 < y1 {
+                    let label_y = y2.saturating_sub(1);
+                    let start_x = x2 + 1;
+                    canvas.draw_text(start_x, label_y, label);
+                } else {
+                    let label_y = y2 + 1;
+                    let start_x = x2 + 1;
+                    canvas.draw_text(start_x, label_y, label);
+                }
+            }
         }
     }
 
@@ -743,11 +774,16 @@ impl FlowchartRenderer {
         let (jx, jy) = junction;
 
         // Draw the junction point
+        // Junction receives line from source direction and splits perpendicular
+        // TopDown: line comes from UP, splits LEFT/RIGHT → ┴
+        // BottomUp: line comes from DOWN, splits LEFT/RIGHT → ┬
+        // LeftRight: line comes from LEFT, splits UP/DOWN → ┤
+        // RightLeft: line comes from RIGHT, splits UP/DOWN → ├
         let junction_char = match direction {
-            crate::core::Direction::TopDown => if self.style.is_ascii() { '+' } else { '┬' },
-            crate::core::Direction::BottomUp => if self.style.is_ascii() { '+' } else { '┴' },
-            crate::core::Direction::LeftRight => if self.style.is_ascii() { '+' } else { '├' },
-            crate::core::Direction::RightLeft => if self.style.is_ascii() { '+' } else { '┤' },
+            crate::core::Direction::TopDown => if self.style.is_ascii() { '+' } else { '┴' },
+            crate::core::Direction::BottomUp => if self.style.is_ascii() { '+' } else { '┬' },
+            crate::core::Direction::LeftRight => if self.style.is_ascii() { '+' } else { '┤' },
+            crate::core::Direction::RightLeft => if self.style.is_ascii() { '+' } else { '├' },
         };
         canvas.set_char(jx, jy, junction_char);
     }
@@ -780,13 +816,15 @@ impl FlowchartRenderer {
                 if corner_x != jx {
                     self.draw_horizontal_line(canvas, jy, jx.min(corner_x), jx.max(corner_x), &chars);
                 }
-                // Corner
+                // Corner: line comes from junction (horizontal), goes down (vertical)
+                // tx < jx: corner is left of junction, line comes from RIGHT, goes DOWN → ┌
+                // tx > jx: corner is right of junction, line comes from LEFT, goes DOWN → ┐
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if tx < jx {
-                    '┐'
-                } else if tx > jx {
                     '┌'
+                } else if tx > jx {
+                    '┐'
                 } else {
                     '│'
                 };
@@ -807,12 +845,15 @@ impl FlowchartRenderer {
                 if corner_x != jx {
                     self.draw_horizontal_line(canvas, jy, jx.min(corner_x), jx.max(corner_x), &chars);
                 }
+                // Corner: line comes from junction (horizontal), goes up (vertical)
+                // tx < jx: corner is left of junction, line comes from RIGHT, goes UP → └
+                // tx > jx: corner is right of junction, line comes from LEFT, goes UP → ┘
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if tx < jx {
-                    '┘'
-                } else if tx > jx {
                     '└'
+                } else if tx > jx {
+                    '┘'
                 } else {
                     '│'
                 };
@@ -833,12 +874,15 @@ impl FlowchartRenderer {
                 if corner_y != jy {
                     self.draw_vertical_line(canvas, jx, jy.min(corner_y), jy.max(corner_y), &chars);
                 }
+                // Corner: line comes from junction (vertical), goes right (horizontal)
+                // ty < jy: corner is above junction, line comes from BELOW, goes RIGHT → ┌
+                // ty > jy: corner is below junction, line comes from ABOVE, goes RIGHT → └
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if ty < jy {
-                    '└'
-                } else if ty > jy {
                     '┌'
+                } else if ty > jy {
+                    '└'
                 } else {
                     '─'
                 };
@@ -859,12 +903,15 @@ impl FlowchartRenderer {
                 if corner_y != jy {
                     self.draw_vertical_line(canvas, jx, jy.min(corner_y), jy.max(corner_y), &chars);
                 }
+                // Corner: line comes from junction (vertical), goes left (horizontal)
+                // ty < jy: corner is above junction, line comes from BELOW, goes LEFT → ┐
+                // ty > jy: corner is below junction, line comes from ABOVE, goes LEFT → ┘
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if ty < jy {
-                    '┘'
-                } else if ty > jy {
                     '┐'
+                } else if ty > jy {
+                    '┘'
                 } else {
                     '─'
                 };
@@ -1099,6 +1146,10 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
         // Track which junctions we've drawn
         let mut drawn_junctions: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
 
+        // Collect labels to draw after all edges (so labels don't interfere with edge drawing)
+        let mut labels_to_draw: Vec<(Vec<(usize, usize)>, String)> = Vec::new();
+
+        // First pass: draw all edge lines
         for edge in &layout.edges {
             let edge_data = database
                 .edges()
@@ -1147,10 +1198,16 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
                 self.draw_edge(&mut canvas, &edge.waypoints, edge_type);
             }
 
+            // Collect label for later drawing
             if let Some(label) = edge_label {
-                self.draw_edge_label(&mut canvas, &edge.waypoints, label);
+                labels_to_draw.push((edge.waypoints.clone(), label.to_string()));
             }
             edges_drawn += 1;
+        }
+
+        // Second pass: draw all labels (after edge lines, so they overlay correctly)
+        for (waypoints, label) in &labels_to_draw {
+            self.draw_edge_label(&mut canvas, waypoints, label);
         }
         debug!(edges_drawn, "Drew edges");
         drop(_edge_enter);
