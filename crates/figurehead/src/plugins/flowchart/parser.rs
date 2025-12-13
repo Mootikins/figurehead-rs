@@ -7,7 +7,28 @@ use super::chumsky_parser::{ChumskyFlowchartParser, NodeRef, Statement};
 use super::FlowchartDatabase;
 use crate::core::{Database, EdgeData, NodeData, Parser};
 use anyhow::Result;
+use std::cell::RefCell;
 use tracing::{debug, error, info, span, trace, warn, Level};
+
+thread_local! {
+    /// Thread-local storage for collecting parse warnings
+    static PARSE_WARNINGS: RefCell<Vec<String>> = RefCell::new(Vec::new());
+}
+
+/// Clear any accumulated warnings
+pub fn clear_warnings() {
+    PARSE_WARNINGS.with(|w| w.borrow_mut().clear());
+}
+
+/// Get all accumulated warnings and clear them
+pub fn take_warnings() -> Vec<String> {
+    PARSE_WARNINGS.with(|w| std::mem::take(&mut *w.borrow_mut()))
+}
+
+/// Add a warning to the collection
+fn add_warning(warning: String) {
+    PARSE_WARNINGS.with(|w| w.borrow_mut().push(warning));
+}
 
 const CONNECTORS: [&str; 6] = ["-->", "==>", "---", "-.-", "-.->", "~~~"];
 
@@ -70,7 +91,9 @@ impl Parser<FlowchartDatabase> for FlowchartParser {
                     }
                 }
                 Err(e) => {
+                    let warning = format!("Skipped invalid statement '{}': {}", statement_text, e);
                     warn!(error = %e, statement = %statement_text, "Failed to parse statement");
+                    add_warning(warning);
                     skipped_statements.push(statement_text);
                 }
             }
@@ -83,6 +106,15 @@ impl Parser<FlowchartDatabase> for FlowchartParser {
                 skipped_statements = ?skipped_statements,
                 "Skipped invalid statements"
             );
+
+            // If we have no valid nodes/edges but had statements to parse, that's an error
+            if node_count == 0 && edge_count == 0 {
+                error!("No valid statements parsed");
+                return Err(anyhow::anyhow!(
+                    "Parse error: no valid statements found. Invalid syntax: {}",
+                    skipped_statements.join(", ")
+                ));
+            }
         }
 
         info!(

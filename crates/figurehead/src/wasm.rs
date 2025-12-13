@@ -7,7 +7,11 @@
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer};
+use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer, FlowchartDetector, clear_warnings, take_warnings};
+#[cfg(target_arch = "wasm32")]
+use crate::plugins::gitgraph::GitGraphDetector;
+#[cfg(target_arch = "wasm32")]
+use crate::plugins::Orchestrator;
 #[cfg(target_arch = "wasm32")]
 use crate::core::{CharacterSet, Database, Parser, Renderer};
 
@@ -111,6 +115,107 @@ pub fn parse_flowchart(input: &str) -> String {
 
     serde_json::to_string(&result)
         .expect("Failed to serialize JSON")
+}
+
+/// Render any supported diagram type (auto-detects)
+///
+/// # Arguments
+/// * `input` - Mermaid diagram syntax (flowchart, gitgraph, etc.)
+///
+/// # Returns
+/// * The ASCII art representation as a String
+/// * Throws a JavaScript error if parsing or rendering fails
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn render_diagram(input: &str) -> Result<String, JsValue> {
+    let mut orchestrator = Orchestrator::with_all_plugins();
+    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+
+    orchestrator.process(input)
+        .map_err(|e| JsValue::from_str(&format!("{}", e)))
+}
+
+/// Render any supported diagram type with a specific style (auto-detects)
+///
+/// # Arguments
+/// * `input` - Mermaid diagram syntax (flowchart, gitgraph, etc.)
+/// * `style` - Character set style ("ascii", "unicode", "unicode-math", or "compact")
+///
+/// # Returns
+/// * The ASCII art representation as a String
+/// * Throws a JavaScript error if parsing or rendering fails
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn render_diagram_with_style(input: &str, style: &str) -> Result<String, JsValue> {
+    let character_set = match style {
+        "ascii" => CharacterSet::Ascii,
+        "unicode" => CharacterSet::Unicode,
+        "unicode-math" => CharacterSet::UnicodeMath,
+        "compact" => CharacterSet::Compact,
+        _ => return Err(JsValue::from_str(&format!(
+            "Unknown style: {}. Use 'ascii', 'unicode', 'unicode-math', or 'compact'", style
+        ))),
+    };
+
+    let mut orchestrator = Orchestrator::with_all_plugins_and_style(character_set);
+    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+
+    orchestrator.process(input)
+        .map_err(|e| JsValue::from_str(&format!("{}", e)))
+}
+
+/// Render a diagram and return JSON with output and any warnings
+///
+/// # Arguments
+/// * `input` - Mermaid diagram syntax (flowchart, gitgraph, etc.)
+/// * `style` - Character set style ("ascii", "unicode", "unicode-math", or "compact")
+///
+/// # Returns
+/// * JSON string with fields: output, warnings, error
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn render_diagram_json(input: &str, style: &str) -> String {
+    // Clear any previous warnings
+    clear_warnings();
+
+    let character_set = match style {
+        "ascii" => CharacterSet::Ascii,
+        "unicode" => CharacterSet::Unicode,
+        "unicode-math" => CharacterSet::UnicodeMath,
+        "compact" => CharacterSet::Compact,
+        _ => {
+            return serde_json::json!({
+                "output": "",
+                "warnings": [],
+                "error": format!("Unknown style: {}. Use 'ascii', 'unicode', 'unicode-math', or 'compact'", style)
+            }).to_string();
+        }
+    };
+
+    let mut orchestrator = Orchestrator::with_all_plugins_and_style(character_set);
+    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+
+    match orchestrator.process(input) {
+        Ok(output) => {
+            let warnings = take_warnings();
+            serde_json::json!({
+                "output": output,
+                "warnings": warnings,
+                "error": null
+            }).to_string()
+        }
+        Err(e) => {
+            let warnings = take_warnings();
+            serde_json::json!({
+                "output": "",
+                "warnings": warnings,
+                "error": format!("{}", e)
+            }).to_string()
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

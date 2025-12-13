@@ -435,8 +435,10 @@ mod tests {
         let input = "invalid syntax that is not mermaid";
         let result = orchestrator.process_flowchart(input);
 
-        // Should still return Ok (parser handles errors gracefully)
-        assert!(result.is_ok());
+        // Should return an error for completely invalid syntax
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Parse error") || err.contains("no valid statements"));
     }
 
     #[test]

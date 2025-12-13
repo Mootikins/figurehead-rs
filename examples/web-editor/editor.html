@@ -52,6 +52,28 @@
             padding: 10px;
             border-left: 3px solid #f48771;
         }
+        .warnings {
+            background: #3d3520;
+            border-bottom: 1px solid #555;
+            padding: 0;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .warnings:empty {
+            display: none;
+        }
+        .warning-item {
+            padding: 8px 15px;
+            color: #cca700;
+            font-size: 12px;
+            border-bottom: 1px solid #4a4020;
+        }
+        .warning-item:last-child {
+            border-bottom: none;
+        }
+        .warning-icon {
+            margin-right: 8px;
+        }
         .header {
             padding: 10px 15px;
             background: #2d2d30;
@@ -88,11 +110,12 @@
     </div>
     <div class="output-pane">
         <div class="header">ASCII Output</div>
+        <div id="warnings" class="warnings"></div>
         <div id="output" class="output">Loading...</div>
     </div>
 
     <script type="module">
-        import init, { render_flowchart, render_flowchart_with_style } from './pkg/figurehead.js';
+        import init, { render_diagram_json } from './pkg/figurehead.js';
 
         let wasmReady = false;
         let renderTimeout = null;
@@ -111,26 +134,47 @@
             const input = document.getElementById('input').value;
             const style = document.getElementById('style-select').value;
             const output = document.getElementById('output');
+            const warnings = document.getElementById('warnings');
 
             if (!input.trim()) {
                 output.textContent = '';
                 output.className = 'output';
+                warnings.innerHTML = '';
                 return;
             }
 
             try {
-                let result;
-                if (style === 'unicode') {
-                    result = render_flowchart(input);
+                const resultJson = render_diagram_json(input, style);
+                const result = JSON.parse(resultJson);
+
+                // Display warnings
+                if (result.warnings && result.warnings.length > 0) {
+                    warnings.innerHTML = result.warnings.map(w =>
+                        `<div class="warning-item"><span class="warning-icon">⚠</span>${escapeHtml(w)}</div>`
+                    ).join('');
                 } else {
-                    result = render_flowchart_with_style(input, style);
+                    warnings.innerHTML = '';
                 }
-                output.textContent = result;
-                output.className = 'output';
+
+                // Display output or error
+                if (result.error) {
+                    output.textContent = `Error: ${result.error}`;
+                    output.className = 'output error';
+                } else {
+                    output.textContent = result.output;
+                    output.className = 'output';
+                }
             } catch (error) {
-                output.textContent = `Error: ${error.message}`;
+                output.textContent = `Error: ${error}`;
                 output.className = 'output error';
+                warnings.innerHTML = '';
             }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function debouncedRender() {
