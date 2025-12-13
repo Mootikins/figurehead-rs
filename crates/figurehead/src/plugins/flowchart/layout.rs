@@ -177,6 +177,27 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         debug!(max_layer, layer_count = layer_nodes.len(), "Assigned nodes to layers");
         drop(_layer_enter);
 
+        // Normalize heights within each layer for TD/BT
+        if matches!(direction, Direction::TopDown | Direction::BottomUp) {
+            // Group nodes by layer and find max height per layer
+            let mut layer_max_heights: HashMap<usize, usize> = HashMap::new();
+            for &node_id in &sorted {
+                if let (Some(&layer), Some(&(_, height))) = (layers.get(node_id), node_sizes.get(node_id)) {
+                    let max = layer_max_heights.entry(layer).or_insert(0);
+                    *max = (*max).max(height);
+                }
+            }
+
+            // Update node sizes to match layer max
+            for &node_id in &sorted {
+                if let (Some(&layer), Some((width, _))) = (layers.get(node_id), node_sizes.get(node_id).copied()) {
+                    if let Some(&max_height) = layer_max_heights.get(&layer) {
+                        node_sizes.insert(node_id, (width, max_height));
+                    }
+                }
+            }
+        }
+
         // Calculate positions based on direction
         let position_span = span!(Level::DEBUG, "calculate_positions", direction = ?direction);
         let _position_enter = position_span.enter();

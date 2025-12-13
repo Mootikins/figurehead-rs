@@ -41,3 +41,24 @@ fn test_compact_horizontal_gap_is_one() {
     };
     assert_eq!(gap, 1, "Horizontal gap should be 1, got {}", gap);
 }
+
+#[test]
+fn test_td_layer_nodes_have_same_height() {
+    use figurehead::core::NodeShape;
+
+    let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+    // Rectangle has height 3, Diamond has height 5 (3 + extra_height of 2)
+    db.add_shaped_node("A", "Rectangle", NodeShape::Rectangle).unwrap();
+    db.add_shaped_node("B", "Diamond", NodeShape::Diamond).unwrap();
+    // No edges - both in layer 0
+
+    let layout = FlowchartLayoutAlgorithm::new();
+    let result = layout.layout(&db).unwrap();
+
+    let node_a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+    let node_b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+
+    assert_eq!(node_a.height, node_b.height,
+        "Nodes in same layer should have same height: A={}, B={}",
+        node_a.height, node_b.height);
+}
