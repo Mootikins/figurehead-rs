@@ -80,3 +80,34 @@ fn test_lr_layer_nodes_have_same_width() {
         "Nodes in same layer should have same width: A={}, B={}",
         node_a.width, node_b.width);
 }
+
+#[test]
+fn test_split_edges_are_grouped() {
+    let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+    db.add_simple_node("D", "Decision").unwrap();
+    db.add_simple_node("Y", "Yes").unwrap();
+    db.add_simple_node("N", "No").unwrap();
+    db.add_simple_edge("D", "Y").unwrap();
+    db.add_simple_edge("D", "N").unwrap();
+
+    let layout = FlowchartLayoutAlgorithm::new();
+    let result = layout.layout(&db).unwrap();
+
+    // Both edges from D should have group info
+    let edges_from_d: Vec<_> = result.edges.iter()
+        .filter(|e| e.from_id == "D")
+        .collect();
+
+    assert_eq!(edges_from_d.len(), 2);
+
+    for edge in &edges_from_d {
+        assert!(edge.junction.is_some(), "Edge to {} should have junction", edge.to_id);
+        assert_eq!(edge.group_size, Some(2), "Group size should be 2");
+    }
+
+    // Group indices should be 0 and 1
+    let indices: Vec<_> = edges_from_d.iter()
+        .filter_map(|e| e.group_index)
+        .collect();
+    assert!(indices.contains(&0) && indices.contains(&1));
+}

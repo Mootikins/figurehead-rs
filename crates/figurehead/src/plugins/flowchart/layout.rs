@@ -350,20 +350,50 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         );
         drop(_position_enter);
 
-        // Route edges (simple straight-line for now)
+        // Route edges with grouping for splits
         let edge_span = span!(Level::DEBUG, "route_edges");
         let _edge_enter = edge_span.enter();
+
+        // Group edges by source node
+        let mut edges_by_source: HashMap<&str, Vec<&crate::core::EdgeData>> = HashMap::new();
+        for edge in database.edges() {
+            edges_by_source.entry(&edge.from).or_default().push(edge);
+        }
+
         let mut positioned_edges = Vec::new();
         let node_positions: HashMap<&str, &PositionedNode> = positioned_nodes
             .iter()
             .map(|n| (n.id.as_str(), n))
             .collect();
 
-        for edge in database.edges() {
-            if let (Some(from), Some(to)) =
-                (node_positions.get(edge.from.as_str()), node_positions.get(edge.to.as_str()))
-            {
-                // Calculate exit and entry points based on direction
+        for (source_id, edges) in edges_by_source {
+            let Some(from) = node_positions.get(source_id) else { continue };
+
+            let group_size = edges.len();
+            let is_split = group_size > 1;
+
+            // Calculate junction point for splits
+            let junction = if is_split {
+                match direction {
+                    Direction::TopDown => Some((from.x + from.width / 2, from.y + from.height + 1)),
+                    Direction::BottomUp => Some((from.x + from.width / 2, from.y.saturating_sub(1))),
+                    Direction::LeftRight => Some((from.x + from.width + 1, from.y + from.height / 2)),
+                    Direction::RightLeft => Some((from.x.saturating_sub(1), from.y + from.height / 2)),
+                }
+            } else {
+                None
+            };
+
+            // Sort edges for consistent ordering (by target position)
+            let mut sorted_edges: Vec<_> = edges.into_iter().collect();
+            sorted_edges.sort_by_key(|e| {
+                node_positions.get(e.to.as_str()).map(|n| (n.x, n.y)).unwrap_or((usize::MAX, usize::MAX))
+            });
+
+            for (group_index, edge) in sorted_edges.into_iter().enumerate() {
+                let Some(to) = node_positions.get(edge.to.as_str()) else { continue };
+
+                // Calculate exit and entry points
                 let (exit_x, exit_y, entry_x, entry_y) = match direction {
                     Direction::TopDown => (
                         from.x + from.width / 2,
@@ -395,9 +425,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                     from_id: edge.from.clone(),
                     to_id: edge.to.clone(),
                     waypoints: vec![(exit_x, exit_y), (entry_x, entry_y)],
-                    junction: None,
-                    group_index: None,
-                    group_size: None,
+                    junction,
+                    group_index: if is_split { Some(group_index) } else { None },
+                    group_size: if is_split { Some(group_size) } else { None },
                 });
             }
         }
