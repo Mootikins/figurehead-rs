@@ -62,3 +62,21 @@ fn test_td_layer_nodes_have_same_height() {
         "Nodes in same layer should have same height: A={}, B={}",
         node_a.height, node_b.height);
 }
+
+#[test]
+fn test_lr_layer_nodes_have_same_width() {
+    let mut db = FlowchartDatabase::with_direction(Direction::LeftRight);
+    db.add_simple_node("A", "Hi").unwrap();
+    db.add_simple_node("B", "Hello World").unwrap();
+    // No edges - both in layer 0
+
+    let layout = FlowchartLayoutAlgorithm::new();
+    let result = layout.layout(&db).unwrap();
+
+    let node_a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+    let node_b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+
+    assert_eq!(node_a.width, node_b.width,
+        "Nodes in same layer should have same width: A={}, B={}",
+        node_a.width, node_b.width);
+}
