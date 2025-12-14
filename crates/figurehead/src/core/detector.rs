@@ -41,23 +41,35 @@ mod tests {
         // This test ensures we have the DiagramDetector trait
         let detector = FlowchartDetector::new();
         assert_eq!(detector.diagram_type(), "flowchart");
-        assert_eq!(
-            detector.patterns(),
-            vec![
-                "graph",
-                "flowchart",
-                "-->",
-                "---",
-                "subgraph",
-                "end",
-                "[",
-                "]",
-                "(",
-                ")",
-                "{",
-                "}"
-            ]
-        );
+        let patterns = detector.patterns();
+        let required = [
+            "graph",
+            "flowchart",
+            "-->",
+            "---",
+            "subgraph",
+            "end",
+            "[",
+            "]",
+            "(",
+            ")",
+            "{",
+            "}",
+            "-.->",
+            "==>",
+            "===",
+            "-.-",
+            "--o",
+            "--x",
+            "~~~",
+        ];
+        for pat in required {
+            assert!(
+                patterns.contains(&pat),
+                "expected pattern {} to be advertised",
+                pat
+            );
+        }
     }
 
     #[test]

@@ -7,6 +7,7 @@ use super::chumsky_parser::{ChumskyFlowchartParser, NodeRef, Statement};
 use super::FlowchartDatabase;
 use crate::core::{Database, EdgeData, NodeData, Parser};
 use anyhow::Result;
+use std::cmp::Ordering;
 use std::cell::RefCell;
 use tracing::{debug, error, info, span, trace, warn, Level};
 
@@ -30,7 +31,7 @@ fn add_warning(warning: String) {
     PARSE_WARNINGS.with(|w| w.borrow_mut().push(warning));
 }
 
-const CONNECTORS: [&str; 6] = ["-->", "==>", "---", "-.-", "-.->", "~~~"];
+const CONNECTORS: [&str; 9] = ["-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~"];
 
 /// Flowchart parser implementation
 pub struct FlowchartParser;
@@ -135,7 +136,7 @@ impl Parser<FlowchartDatabase> for FlowchartParser {
     }
 
     fn can_parse(&self, input: &str) -> bool {
-        input.contains("-->") || input.contains("---") || input.contains("==>")
+        CONNECTORS.iter().any(|connector| input.contains(connector))
     }
 }
 
@@ -229,7 +230,12 @@ fn find_next_connector(statement: &str, start: usize) -> Option<(usize, &'static
     CONNECTORS
         .iter()
         .filter_map(|&conn| statement[start..].find(conn).map(|pos| (start + pos, conn)))
-        .min_by_key(|(pos, _)| *pos)
+        .min_by(|a, b| {
+            match a.0.cmp(&b.0) {
+                Ordering::Equal => b.1.len().cmp(&a.1.len()),
+                other => other,
+            }
+        })
 }
 
 fn normalize_inline_labels(input: &str) -> String {
@@ -365,9 +371,30 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_statements_supports_additional_connectors() {
+        let input = r#"
+            graph TD
+            A --o B --o C
+            C --x D === E
+            F -.-> G -.- H"#;
+
+        let statements = extract_statements(input);
+        assert_eq!(
+            statements,
+            vec!["A--oB", "B--oC", "C--xD", "D===E", "F-.->G", "G-.-H"]
+        );
+    }
+
+    #[test]
     fn test_split_chained_edges() {
         let edges = split_chained_edges("A-->B-->C-->D");
         assert_eq!(edges, vec!["A-->B", "B-->C", "C-->D"]);
+    }
+
+    #[test]
+    fn test_split_chained_edges_prefers_longest_connector() {
+        let edges = split_chained_edges("A-.->B-.->C");
+        assert_eq!(edges, vec!["A-.->B", "B-.->C"]);
     }
 
     #[test]
@@ -376,6 +403,14 @@ mod tests {
         let normalized = normalize_inline_labels(statement);
         assert!(normalized.contains("-->|Yes|"));
         assert!(normalized.contains("---|No|"));
+    }
+
+    #[test]
+    fn test_normalize_inline_labels_handles_additional_connectors() {
+        let statement = "A --|Maybe|--o B; C --|X|=== D";
+        let normalized = normalize_inline_labels(statement);
+        assert!(normalized.contains("--o|Maybe|"));
+        assert!(normalized.contains("===|X|"));
     }
 
     #[test]
@@ -517,10 +552,13 @@ mod tests {
             C --- D
             D -.- E
             E -.-> F
-            F ~~~ G"#;
+            F ~~~ G
+            G --o H
+            H --x I
+            I === J"#;
 
         parser.parse(input, &mut database).unwrap();
-        assert_eq!(database.edge_count(), 6);
+        assert_eq!(database.edge_count(), 9);
         
         let edges: Vec<_> = database.edges().collect();
         assert_eq!(edges[0].edge_type, EdgeType::Arrow);
@@ -529,6 +567,9 @@ mod tests {
         assert_eq!(edges[3].edge_type, EdgeType::DottedLine);
         assert_eq!(edges[4].edge_type, EdgeType::DottedArrow);
         assert_eq!(edges[5].edge_type, EdgeType::Invisible);
+        assert_eq!(edges[6].edge_type, EdgeType::OpenArrow);
+        assert_eq!(edges[7].edge_type, EdgeType::CrossArrow);
+        assert_eq!(edges[8].edge_type, EdgeType::ThickLine);
     }
 
     #[test]
@@ -691,6 +732,24 @@ mod tests {
         parser.parse(input, &mut database).unwrap();
         assert_eq!(database.edge_count(), 3);
         assert_eq!(database.node_count(), 4);
+    }
+
+    #[test]
+    fn test_parser_handles_chained_additional_edge_types() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            A --o B --o C
+            C --x D === E"#;
+
+        parser.parse(input, &mut database).unwrap();
+        assert_eq!(database.edge_count(), 4);
+        let edges: Vec<_> = database.edges().collect();
+        assert_eq!(edges[0].edge_type, EdgeType::OpenArrow);
+        assert_eq!(edges[1].edge_type, EdgeType::OpenArrow);
+        assert_eq!(edges[2].edge_type, EdgeType::CrossArrow);
+        assert_eq!(edges[3].edge_type, EdgeType::ThickLine);
     }
 
     #[test]

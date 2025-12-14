@@ -8,6 +8,9 @@ use tracing::{debug, info, trace};
 /// Flowchart detector implementation
 pub struct FlowchartDetector;
 
+// Mermaid flowchart connectors we support
+const CONNECTORS: [&str; 9] = ["-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~"];
+
 impl FlowchartDetector {
     pub fn new() -> Self {
         Self
@@ -33,7 +36,7 @@ impl Detector for FlowchartDetector {
         }
 
         // Check for arrow patterns
-        if input.contains("-->") || input.contains("---") {
+        if CONNECTORS.iter().any(|conn| input.contains(conn)) {
             debug!("Detected flowchart via arrow patterns");
             return true;
         }
@@ -99,7 +102,10 @@ impl Detector for FlowchartDetector {
         }
 
         // Secondary indicators (medium weight)
-        let arrow_count = input.matches("-->").count() + input.matches("---").count();
+        let arrow_count: usize = CONNECTORS
+            .iter()
+            .map(|conn| input.matches(conn).count())
+            .sum();
         if arrow_count > 0 {
             score += 0.15 * (arrow_count as f64).min(3.0); // Cap at 3 arrows
         }
@@ -141,20 +147,9 @@ impl Detector for FlowchartDetector {
     }
 
     fn patterns(&self) -> Vec<&'static str> {
-        vec![
-            "graph",
-            "flowchart",
-            "-->",
-            "---",
-            "subgraph",
-            "end",
-            "[",
-            "]",
-            "(",
-            ")",
-            "{",
-            "}",
-        ]
+        let mut patterns = vec!["graph", "flowchart", "subgraph", "end", "[", "]", "(", ")", "{", "}"];
+        patterns.extend(CONNECTORS);
+        patterns
     }
 }
 
@@ -186,6 +181,11 @@ mod tests {
         assert!(detector.detect("A --> B"));
         assert!(detector.detect("A---B"));
         assert!(detector.detect("A --- B"));
+        assert!(detector.detect("A --o B"));
+        assert!(detector.detect("A --x B"));
+        assert!(detector.detect("A -.-> B"));
+        assert!(detector.detect("A === B"));
+        assert!(detector.detect("A ~~~ B"));
 
         // Test node syntax patterns (require arrows to avoid false positives)
         assert!(detector.detect("A(Node) --> B"));
@@ -204,6 +204,7 @@ mod tests {
         // Arrow patterns should have medium confidence
         assert!(detector.confidence("A --> B") > 0.1);
         assert!(detector.confidence("A --- B") > 0.1);
+        assert!(detector.confidence("A --o B") > 0.1);
 
         // Combined patterns should score higher
         let multi_pattern = "graph TD\n    A --> B\n    B --> C";

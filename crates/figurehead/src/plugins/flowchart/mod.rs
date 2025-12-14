@@ -158,7 +158,10 @@ mod integration_tests {
     C --- D
     D -.- E
     E -.-> F
-    F ~~~ G"#;
+    F ~~~ G
+    G --o H
+    H --x I
+    I === J"#;
 
         let detector = FlowchartDetector::new();
         assert!(detector.detect(input));
@@ -173,8 +176,8 @@ mod integration_tests {
         let renderer = FlowchartRenderer::new();
         let output = renderer.render(&database).unwrap();
 
-        assert_eq!(database.edge_count(), 6);
-        assert_eq!(layout_result.edges.len(), 6);
+        assert_eq!(database.edge_count(), 9);
+        assert_eq!(layout_result.edges.len(), 9);
         assert!(!output.is_empty());
     }
 
