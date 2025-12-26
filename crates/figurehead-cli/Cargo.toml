@@ -24,4 +24,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+expectrl = "0.8.0"
+png = "0.18.0"
 tempfile.workspace = true
+text-to-png = "0.3.0"

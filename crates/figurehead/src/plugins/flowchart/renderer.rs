@@ -76,6 +76,7 @@ impl ToString for AsciiCanvas {
             })
             .collect();
 
+        // Trim empty rows from top and bottom
         while rows.first().is_some_and(|row| row.is_empty()) {
             rows.remove(0);
         }
@@ -87,6 +88,7 @@ impl ToString for AsciiCanvas {
             return String::new();
         }
 
+        // Remove common leading whitespace
         let min_indent = rows
             .iter()
             .filter(|row| !row.is_empty())
