@@ -55,6 +55,7 @@ pub struct LayoutConfig {
     pub min_node_height: usize,
     pub padding: usize,
     pub max_label_width: usize, // Max width before label wraps (0 = no wrap)
+    pub diamond_style: crate::core::DiamondStyle,
 }
 
 impl Default for LayoutConfig {
@@ -66,6 +67,7 @@ impl Default for LayoutConfig {
             min_node_height: 3,
             padding: 1,       // was 2: canvas edge padding
             max_label_width: 30, // Wrap labels longer than 30 chars
+            diamond_style: crate::core::DiamondStyle::Box,
         }
     }
 }
@@ -138,9 +140,18 @@ impl FlowchartLayoutAlgorithm {
             .unwrap_or(0);
         let label_lines = wrapped_lines.len();
 
-        let (extra_width, extra_height) = match shape {
+        let (extra_width, extra_height): (usize, i32) = match shape {
             NodeShape::Rectangle | NodeShape::RoundedRect | NodeShape::Subroutine => (4, 0),
-            NodeShape::Diamond => (6, 2), // Diamonds need more space
+            NodeShape::Diamond => {
+                // Diamond height depends on the diamond style
+                use crate::core::DiamondStyle;
+                let height_extra = match self.config.diamond_style {
+                    DiamondStyle::Box => 0,    // 3 lines total
+                    DiamondStyle::Inline => -2, // 1 line total (will be clamped to min)
+                    DiamondStyle::Tall => 2,    // 5 lines total
+                };
+                (6, height_extra)
+            }
             NodeShape::Circle => (4, 0),
             NodeShape::Hexagon => (6, 0),
             NodeShape::Asymmetric | NodeShape::Parallelogram | NodeShape::Trapezoid => (6, 0),
@@ -149,7 +160,7 @@ impl FlowchartLayoutAlgorithm {
 
         let width = (label_width + extra_width).max(self.config.min_node_width);
         // Add extra height for multi-line labels (each extra line adds 1)
-        let base_height = 3 + extra_height;
+        let base_height = (3i32 + extra_height).max(1) as usize;
         let height = (base_height + label_lines.saturating_sub(1)).max(self.config.min_node_height);
 
         (width, height)

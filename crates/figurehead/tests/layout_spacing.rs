@@ -59,8 +59,9 @@ fn test_td_layer_nodes_keep_natural_heights() {
     let node_b = result.nodes.iter().find(|n| n.id == "B").unwrap();
 
     // TD direction keeps natural heights - no normalization
+    // With Box diamond style (default), diamonds are 3 lines like rectangles
     assert_eq!(node_a.height, 3, "Rectangle should have natural height 3");
-    assert_eq!(node_b.height, 5, "Diamond should have natural height 5");
+    assert_eq!(node_b.height, 3, "Diamond (Box style) should have natural height 3");
 }
 
 #[test]

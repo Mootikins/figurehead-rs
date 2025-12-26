@@ -6,7 +6,7 @@ use anyhow::Result;
 use tracing::{debug, info, span, trace, Level};
 
 use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode};
-use crate::core::{CharacterSet, Database, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
+use crate::core::{CharacterSet, Database, DiamondStyle, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
 
 /// ASCII canvas representing the final diagram
 #[derive(Debug, Clone)]
@@ -156,27 +156,42 @@ impl BoxChars {
 /// Flowchart ASCII renderer
 pub struct FlowchartRenderer {
     style: CharacterSet,
+    diamond_style: DiamondStyle,
 }
 
 /// Max label width before wrapping (must match layout config)
 const MAX_LABEL_WIDTH: usize = 30;
 
 impl FlowchartRenderer {
-    /// Create a new renderer with default Unicode style
+    /// Create a new renderer with default Unicode style and Box diamond
     pub fn new() -> Self {
         Self {
-            style: CharacterSet::default(),
+            style: CharacterSet::Unicode,
+            diamond_style: DiamondStyle::Box,
         }
     }
 
     /// Create a new renderer with a specific character set
     pub fn with_style(style: CharacterSet) -> Self {
-        Self { style }
+        Self {
+            style,
+            diamond_style: DiamondStyle::Box,
+        }
+    }
+
+    /// Create a new renderer with specific character set and diamond style
+    pub fn with_styles(style: CharacterSet, diamond_style: DiamondStyle) -> Self {
+        Self { style, diamond_style }
     }
 
     /// Get the current character set
     pub fn style(&self) -> CharacterSet {
         self.style
+    }
+
+    /// Get the current diamond style
+    pub fn diamond_style(&self) -> DiamondStyle {
+        self.diamond_style
     }
 
     /// Wrap a label into multiple lines if it exceeds max width
@@ -488,6 +503,57 @@ impl FlowchartRenderer {
         let w = node.width;
         let h = node.height;
 
+        // First check diamond_style for Box and Inline
+        match self.diamond_style {
+            DiamondStyle::Box => {
+                // Compact 3-line box with diamond corners:
+                // ◆─────────◆
+                // │ decide  │
+                // ◆─────────◆
+                let corner = if self.style.is_ascii() { '+' } else { '◆' };
+                let horiz = if self.style.is_ascii() { '-' } else { '─' };
+                let vert = if self.style.is_ascii() { '|' } else { '│' };
+
+                // Top row
+                canvas.set_char(x, y, corner);
+                for i in x + 1..x + w - 1 {
+                    canvas.set_char(i, y, horiz);
+                }
+                canvas.set_char(x + w - 1, y, corner);
+
+                // Middle row(s) with label
+                let mid_y = y + h / 2;
+                canvas.set_char(x, mid_y, vert);
+                canvas.set_char(x + w - 1, mid_y, vert);
+                let label_x = x + (w.saturating_sub(label.len())) / 2;
+                canvas.draw_text(label_x.max(x + 1), mid_y, label);
+
+                // Bottom row
+                canvas.set_char(x, y + h - 1, corner);
+                for i in x + 1..x + w - 1 {
+                    canvas.set_char(i, y + h - 1, horiz);
+                }
+                canvas.set_char(x + w - 1, y + h - 1, corner);
+                return;
+            }
+            DiamondStyle::Inline => {
+                // Minimal single-line inline style:
+                // ◆ decide ◆
+                let diamond = if self.style.is_ascii() { '<' } else { '◆' };
+                let mid_y = y + h / 2;
+
+                canvas.set_char(x, mid_y, diamond);
+                let label_x = x + 2;
+                canvas.draw_text(label_x, mid_y, label);
+                canvas.set_char(x + w - 1, mid_y, diamond);
+                return;
+            }
+            DiamondStyle::Tall => {
+                // Fall through to CharacterSet-based rendering below
+            }
+        }
+
+        // Tall diamond style - use CharacterSet-based rendering
         match self.style {
             CharacterSet::Compact => {
                 // Compact diamond using box drawing diagonals ╱╲ (U+2571-2572):
@@ -1595,8 +1661,11 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         assert!(output.contains("Yes?"));
-        // Diamond should have < and > characters
-        assert!(output.contains('<') || output.contains('>'));
+        // Diamond should have corner characters (◆ for Box style, < > for Tall)
+        assert!(
+            output.contains('◆') || output.contains('<') || output.contains('>'),
+            "Expected diamond corner chars in: {}", output
+        );
     }
 
     #[test]

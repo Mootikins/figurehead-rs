@@ -48,6 +48,56 @@ impl fmt::Display for CharacterSet {
     }
 }
 
+/// Style for rendering diamond (decision) nodes
+///
+/// Controls the visual appearance of diamond shapes in flowcharts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum DiamondStyle {
+    /// Traditional tall diamond with diagonal lines:
+    /// ```text
+    ///     /\
+    ///    /  \
+    ///   < ok >
+    ///    \  /
+    ///     \/
+    /// ```
+    #[default]
+    Tall,
+    /// Compact 3-line box with diamond corners:
+    /// ```text
+    /// ◆─────────◆
+    /// │ decide  │
+    /// ◆─────────◆
+    /// ```
+    Box,
+    /// Minimal single-line inline style:
+    /// ```text
+    /// ◆ decide ◆
+    /// ```
+    Inline,
+}
+
+impl DiamondStyle {
+    /// Returns the height in rows needed for this style
+    pub fn height(&self, label_lines: usize) -> usize {
+        match self {
+            DiamondStyle::Tall => 5.max(label_lines + 4), // At least 5 rows
+            DiamondStyle::Box => 3,                       // Always 3 rows
+            DiamondStyle::Inline => 1,                    // Single row
+        }
+    }
+}
+
+impl fmt::Display for DiamondStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DiamondStyle::Tall => write!(f, "tall"),
+            DiamondStyle::Box => write!(f, "box"),
+            DiamondStyle::Inline => write!(f, "inline"),
+        }
+    }
+}
+
 /// Node shapes matching Mermaid.js syntax
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum NodeShape {

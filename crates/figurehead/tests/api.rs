@@ -31,8 +31,11 @@ fn test_render_top_down() {
 fn test_render_with_diamond() {
     let ascii = render("graph LR; A-->B{Decision}-->C").unwrap();
     assert!(ascii.contains("Decision"));
-    // Diamond shape uses < and > characters
-    assert!(ascii.contains('<') || ascii.contains('>'));
+    // Diamond shape uses ◆ (Box style) or < > (Tall style)
+    assert!(
+        ascii.contains('◆') || ascii.contains('<') || ascii.contains('>'),
+        "Expected diamond chars in: {}", ascii
+    );
 }
 
 #[test]
