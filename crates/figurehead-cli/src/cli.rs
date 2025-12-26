@@ -9,9 +9,8 @@ use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
 use figurehead::core::logging::init_logging;
-use figurehead::plugins::flowchart::FlowchartDetector;
 use figurehead::plugins::Orchestrator;
-use figurehead::{CharacterSet, DiamondStyle};
+use figurehead::{CharacterSet, DiamondStyle, RenderConfig};
 
 /// Figurehead - Convert Mermaid.js diagrams to ASCII art
 #[derive(Parser)]
@@ -179,33 +178,20 @@ pub struct FigureheadApp {
 }
 
 impl FigureheadApp {
-    /// Create a new application instance
+    /// Create a new application instance with default settings
     pub fn new() -> Self {
-        Self {
-            orchestrator: Self::build_orchestrator(StyleChoice::Unicode, DiamondChoice::Box),
-        }
+        Self::with_config(RenderConfig::default())
     }
 
-    /// Create a new application instance with a specific renderer style
-    pub fn with_style(style: StyleChoice) -> Self {
-        Self {
-            orchestrator: Self::build_orchestrator(style, DiamondChoice::Box),
-        }
+    /// Create a new application instance with a render config
+    pub fn with_config(config: RenderConfig) -> Self {
+        let mut orchestrator = Orchestrator::flowchart(config);
+        orchestrator.register_default_detectors();
+        Self { orchestrator }
     }
 
-    /// Create a new application instance with specific style and diamond options
-    pub fn with_options(style: StyleChoice, diamond: DiamondChoice) -> Self {
-        Self {
-            orchestrator: Self::build_orchestrator(style, diamond),
-        }
-    }
-
-    fn build_orchestrator(style: StyleChoice, diamond: DiamondChoice) -> Orchestrator {
-        let mut orchestrator =
-            Orchestrator::with_flowchart_plugins_and_styles(style.into(), diamond.into());
-        orchestrator
-            .register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
-        orchestrator
+    fn build_config(style: StyleChoice, diamond: DiamondChoice) -> RenderConfig {
+        RenderConfig::new(style.into(), diamond.into())
     }
 
     /// Run the application with the given CLI arguments
@@ -264,7 +250,10 @@ impl FigureheadApp {
         }
 
         // Apply style and diamond options to renderer
-        self.orchestrator = Self::build_orchestrator(style, diamond);
+        let config = Self::build_config(style, diamond);
+        let mut orchestrator = Orchestrator::flowchart(config);
+        orchestrator.register_default_detectors();
+        self.orchestrator = orchestrator;
 
         // Process the diagram
         let result = if skip_detection {

@@ -7,13 +7,11 @@
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer, FlowchartDetector, clear_warnings, take_warnings};
-#[cfg(target_arch = "wasm32")]
-use crate::plugins::gitgraph::GitGraphDetector;
+use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer, clear_warnings, take_warnings};
 #[cfg(target_arch = "wasm32")]
 use crate::plugins::Orchestrator;
 #[cfg(target_arch = "wasm32")]
-use crate::core::{CharacterSet, Database, Parser, Renderer};
+use crate::core::{CharacterSet, Database, Parser, Renderer, RenderConfig};
 
 #[cfg(target_arch = "wasm32")]
 use console_error_panic_hook;
@@ -68,17 +66,12 @@ pub fn render_flowchart(input: &str) -> String {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn render_flowchart_with_style(input: &str, style: &str) -> String {
-    let character_set = match style {
-        "ascii" => CharacterSet::Ascii,
-        "unicode" => CharacterSet::Unicode,
-        "unicode-math" => CharacterSet::UnicodeMath,
-        "compact" => CharacterSet::Compact,
-        _ => panic!("Unknown style: {}. Use 'ascii', 'unicode', 'unicode-math', or 'compact'", style),
-    };
+    let character_set: CharacterSet = style.parse()
+        .unwrap_or_else(|e| panic!("{}", e));
 
     let parser = FlowchartParser::new();
     let mut database = FlowchartDatabase::new();
-    
+
     parser.parse(input, &mut database)
         .map_err(|e| format!("Parse error: {}", e))
         .expect("Failed to parse diagram");
@@ -129,9 +122,7 @@ pub fn parse_flowchart(input: &str) -> String {
 #[wasm_bindgen]
 pub fn render_diagram(input: &str) -> Result<String, JsValue> {
     let mut orchestrator = Orchestrator::with_all_plugins();
-    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
-    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
-
+    orchestrator.register_default_detectors();
     orchestrator.process(input)
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
 }
@@ -148,20 +139,12 @@ pub fn render_diagram(input: &str) -> Result<String, JsValue> {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn render_diagram_with_style(input: &str, style: &str) -> Result<String, JsValue> {
-    let character_set = match style {
-        "ascii" => CharacterSet::Ascii,
-        "unicode" => CharacterSet::Unicode,
-        "unicode-math" => CharacterSet::UnicodeMath,
-        "compact" => CharacterSet::Compact,
-        _ => return Err(JsValue::from_str(&format!(
-            "Unknown style: {}. Use 'ascii', 'unicode', 'unicode-math', or 'compact'", style
-        ))),
-    };
+    let character_set: CharacterSet = style.parse()
+        .map_err(|e| JsValue::from_str(&e))?;
 
-    let mut orchestrator = Orchestrator::with_all_plugins_and_style(character_set);
-    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
-    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
-
+    let config = RenderConfig { style: character_set, ..Default::default() };
+    let mut orchestrator = Orchestrator::all_plugins(config);
+    orchestrator.register_default_detectors();
     orchestrator.process(input)
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
 }
@@ -177,26 +160,22 @@ pub fn render_diagram_with_style(input: &str, style: &str) -> Result<String, JsV
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn render_diagram_json(input: &str, style: &str) -> String {
-    // Clear any previous warnings
     clear_warnings();
 
-    let character_set = match style {
-        "ascii" => CharacterSet::Ascii,
-        "unicode" => CharacterSet::Unicode,
-        "unicode-math" => CharacterSet::UnicodeMath,
-        "compact" => CharacterSet::Compact,
-        _ => {
+    let character_set: CharacterSet = match style.parse() {
+        Ok(cs) => cs,
+        Err(e) => {
             return serde_json::json!({
                 "output": "",
                 "warnings": [],
-                "error": format!("Unknown style: {}. Use 'ascii', 'unicode', 'unicode-math', or 'compact'", style)
+                "error": e
             }).to_string();
         }
     };
 
-    let mut orchestrator = Orchestrator::with_all_plugins_and_style(character_set);
-    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
-    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+    let config = RenderConfig { style: character_set, ..Default::default() };
+    let mut orchestrator = Orchestrator::all_plugins(config);
+    orchestrator.register_default_detectors();
 
     match orchestrator.process(input) {
         Ok(output) => {

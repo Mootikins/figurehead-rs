@@ -46,8 +46,8 @@ pub use core::*;
 /// Prelude module for convenient imports
 pub mod prelude {
     pub use crate::core::{
-        CharacterSet, Database, Detector, Direction, EdgeData, EdgeType, LayoutAlgorithm,
-        NodeData, NodeShape, Parser, Renderer,
+        CharacterSet, Database, Detector, DiamondStyle, Direction, EdgeData, EdgeType,
+        LayoutAlgorithm, NodeData, NodeShape, Parser, RenderConfig, Renderer,
     };
     pub use crate::plugins::flowchart::{
         FlowchartDatabase, FlowchartDetector, FlowchartLayoutAlgorithm, FlowchartParser,
@@ -77,14 +77,9 @@ pub mod prelude {
 /// ```
 pub fn render(input: &str) -> anyhow::Result<String> {
     use crate::plugins::orchestrator::Orchestrator;
-    use crate::plugins::{FlowchartDetector, GitGraphDetector};
-    
+
     let mut orchestrator = Orchestrator::with_all_plugins();
-    
-    // Register detectors
-    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
-    orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
-    
+    orchestrator.register_default_detectors();
     orchestrator.process(input)
 }
 

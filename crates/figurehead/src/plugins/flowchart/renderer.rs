@@ -184,6 +184,14 @@ impl FlowchartRenderer {
         Self { style, diamond_style }
     }
 
+    /// Create a new renderer with a render config
+    pub fn with_config(config: crate::core::RenderConfig) -> Self {
+        Self {
+            style: config.style,
+            diamond_style: config.diamond_style,
+        }
+    }
+
     /// Get the current character set
     pub fn style(&self) -> CharacterSet {
         self.style

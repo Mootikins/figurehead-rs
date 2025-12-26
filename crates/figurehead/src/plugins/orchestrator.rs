@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{debug, info, span, trace, warn, Level};
 
-use crate::core::{Database, Detector, Parser, Renderer};
+use crate::core::{Database, Detector, Parser, Renderer, RenderConfig};
 use crate::plugins::flowchart::FlowchartDatabase;
 use crate::plugins::gitgraph::GitGraphDatabase;
 
@@ -40,31 +40,22 @@ impl Orchestrator {
         }
     }
 
-    /// Create a new orchestrator with all flowchart plugins registered
+    /// Create orchestrator with flowchart plugins using default config
     pub fn with_flowchart_plugins() -> Self {
-        Self::with_flowchart_plugins_and_style(crate::core::CharacterSet::default())
+        Self::flowchart(RenderConfig::default())
     }
 
-    /// Create a new orchestrator with flowchart plugins and a specific renderer style
-    pub fn with_flowchart_plugins_and_style(style: crate::core::CharacterSet) -> Self {
-        Self::with_flowchart_plugins_and_styles(style, crate::core::DiamondStyle::default())
-    }
-
-    /// Create a new orchestrator with flowchart plugins and specific styles
-    pub fn with_flowchart_plugins_and_styles(
-        style: crate::core::CharacterSet,
-        diamond_style: crate::core::DiamondStyle,
-    ) -> Self {
+    /// Create orchestrator with flowchart plugins and render config
+    pub fn flowchart(config: RenderConfig) -> Self {
         let mut layout = crate::plugins::flowchart::FlowchartLayoutAlgorithm::new();
-        layout.config_mut().diamond_style = diamond_style;
+        layout.config_mut().diamond_style = config.diamond_style;
 
         Self {
             detectors: HashMap::new(),
             flowchart_parser: Some(crate::plugins::flowchart::FlowchartParser::new()),
             flowchart_layout: Some(layout),
-            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_styles(
-                style,
-                diamond_style,
+            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_config(
+                config,
             )),
             gitgraph_parser: None,
             gitgraph_layout: None,
@@ -72,19 +63,22 @@ impl Orchestrator {
         }
     }
 
-    /// Create a new orchestrator with all plugins (flowchart and gitgraph)
+    /// Create orchestrator with all plugins using default config
     pub fn with_all_plugins() -> Self {
-        Self::with_all_plugins_and_style(crate::core::CharacterSet::default())
+        Self::all_plugins(RenderConfig::default())
     }
 
-    /// Create a new orchestrator with all plugins and a specific renderer style
-    pub fn with_all_plugins_and_style(style: crate::core::CharacterSet) -> Self {
+    /// Create orchestrator with all plugins and render config
+    pub fn all_plugins(config: RenderConfig) -> Self {
+        let mut layout = crate::plugins::flowchart::FlowchartLayoutAlgorithm::new();
+        layout.config_mut().diamond_style = config.diamond_style;
+
         Self {
             detectors: HashMap::new(),
             flowchart_parser: Some(crate::plugins::flowchart::FlowchartParser::new()),
-            flowchart_layout: Some(crate::plugins::flowchart::FlowchartLayoutAlgorithm::new()),
-            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_style(
-                style,
+            flowchart_layout: Some(layout),
+            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_config(
+                config,
             )),
             gitgraph_parser: Some(crate::plugins::gitgraph::GitGraphParser::new()),
             gitgraph_layout: Some(crate::plugins::gitgraph::GitGraphLayoutAlgorithm::new()),
@@ -92,9 +86,38 @@ impl Orchestrator {
         }
     }
 
+    // === Deprecated aliases for backwards compatibility ===
+
+    #[deprecated(since = "0.2.0", note = "Use `flowchart(RenderConfig { style, ..Default::default() })` instead")]
+    pub fn with_flowchart_plugins_and_style(style: crate::core::CharacterSet) -> Self {
+        Self::flowchart(RenderConfig { style, ..Default::default() })
+    }
+
+    #[deprecated(since = "0.2.0", note = "Use `flowchart(RenderConfig::new(style, diamond_style))` instead")]
+    pub fn with_flowchart_plugins_and_styles(
+        style: crate::core::CharacterSet,
+        diamond_style: crate::core::DiamondStyle,
+    ) -> Self {
+        Self::flowchart(RenderConfig::new(style, diamond_style))
+    }
+
+    #[deprecated(since = "0.2.0", note = "Use `all_plugins(RenderConfig { style, ..Default::default() })` instead")]
+    pub fn with_all_plugins_and_style(style: crate::core::CharacterSet) -> Self {
+        Self::all_plugins(RenderConfig { style, ..Default::default() })
+    }
+
     /// Register a detector plugin
     pub fn register_detector(&mut self, name: String, detector: Box<dyn Detector>) {
         self.detectors.insert(name, detector);
+    }
+
+    /// Register the default set of detectors (flowchart and gitgraph)
+    pub fn register_default_detectors(&mut self) -> &mut Self {
+        use crate::plugins::flowchart::FlowchartDetector;
+        use crate::plugins::gitgraph::GitGraphDetector;
+        self.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+        self.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+        self
     }
 
     /// Get available detector names

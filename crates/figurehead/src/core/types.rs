@@ -61,7 +61,6 @@ pub enum DiamondStyle {
     ///    \  /
     ///     \/
     /// ```
-    #[default]
     Tall,
     /// Compact 3-line box with diamond corners:
     /// ```text
@@ -69,6 +68,7 @@ pub enum DiamondStyle {
     /// │ decide  │
     /// ◆─────────◆
     /// ```
+    #[default]
     Box,
     /// Minimal single-line inline style:
     /// ```text
@@ -95,6 +95,57 @@ impl fmt::Display for DiamondStyle {
             DiamondStyle::Box => write!(f, "box"),
             DiamondStyle::Inline => write!(f, "inline"),
         }
+    }
+}
+
+impl std::str::FromStr for CharacterSet {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "ascii" => Ok(CharacterSet::Ascii),
+            "unicode" => Ok(CharacterSet::Unicode),
+            "unicode-math" | "unicodemath" => Ok(CharacterSet::UnicodeMath),
+            "compact" => Ok(CharacterSet::Compact),
+            _ => Err(format!(
+                "Unknown style '{}'. Use 'ascii', 'unicode', 'unicode-math', or 'compact'",
+                s
+            )),
+        }
+    }
+}
+
+impl std::str::FromStr for DiamondStyle {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "tall" => Ok(DiamondStyle::Tall),
+            "box" => Ok(DiamondStyle::Box),
+            "inline" => Ok(DiamondStyle::Inline),
+            _ => Err(format!(
+                "Unknown diamond style '{}'. Use 'tall', 'box', or 'inline'",
+                s
+            )),
+        }
+    }
+}
+
+/// Configuration for rendering output
+///
+/// Combines all rendering options into a single struct for cleaner APIs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RenderConfig {
+    /// Character set for drawing shapes and edges
+    pub style: CharacterSet,
+    /// Style for diamond (decision) nodes
+    pub diamond_style: DiamondStyle,
+}
+
+impl RenderConfig {
+    /// Create a new config with specified options
+    pub fn new(style: CharacterSet, diamond_style: DiamondStyle) -> Self {
+        Self { style, diamond_style }
     }
 }
 
