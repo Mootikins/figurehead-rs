@@ -42,6 +42,8 @@ Planned:
 
 ## Quick Start
 
+For layout/rendering review targets, see `docs/ideal-output/`.
+
 ### CLI Usage
 
 ```bash

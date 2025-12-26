@@ -360,11 +360,17 @@ impl FigureheadApp {
 
     /// Write output to file or stdout
     pub fn write_output(&self, output: Option<PathBuf>, content: &str) -> Result<()> {
+        let stdout_content = if content.is_empty() || content.ends_with('\n') {
+            content.to_string()
+        } else {
+            format!("{}\n", content)
+        };
+
         match output {
             Some(path) => {
                 if path.to_string_lossy() == "-" {
                     // Write to stdout
-                    print!("{}", content);
+                    print!("{}", stdout_content);
                     io::stdout().flush()?;
                 } else {
                     // Write to file
@@ -375,7 +381,7 @@ impl FigureheadApp {
             }
             None => {
                 // No output file specified, write to stdout
-                print!("{}", content);
+                print!("{}", stdout_content);
                 io::stdout().flush()?;
             }
         }

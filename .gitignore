@@ -37,6 +37,9 @@ mermaid/
 *.tmp
 *.temp
 
+# Generated comparison artifacts
+docs/ideal-output/current/
+
 # Local config
 .env
 .env.local

@@ -67,16 +67,40 @@ impl AsciiCanvas {
 
 impl ToString for AsciiCanvas {
     fn to_string(&self) -> String {
-        self.grid
+        let mut rows: Vec<String> = self
+            .grid
             .iter()
             .map(|row| {
                 let s: String = row.iter().collect();
                 s.trim_end().to_string()
             })
-            .collect::<Vec<_>>()
-            .join("\n")
-            .trim_end()
-            .to_string()
+            .collect();
+
+        while rows.first().is_some_and(|row| row.is_empty()) {
+            rows.remove(0);
+        }
+        while rows.last().is_some_and(|row| row.is_empty()) {
+            rows.pop();
+        }
+
+        if rows.is_empty() {
+            return String::new();
+        }
+
+        let min_indent = rows
+            .iter()
+            .filter(|row| !row.is_empty())
+            .map(|row| row.chars().take_while(|c| *c == ' ').count())
+            .min()
+            .unwrap_or(0);
+
+        if min_indent > 0 {
+            for row in &mut rows {
+                *row = row.chars().skip(min_indent).collect();
+            }
+        }
+
+        rows.join("\n")
     }
 }
 

@@ -40,3 +40,18 @@ web-server:
 
 # Build WASM and run web server
 web: wasm-build web-server
+
+# Generate current Unicode outputs for all ideal samples
+ideal-current:
+	mkdir -p docs/ideal-output/current
+	for f in docs/ideal-output/*.mmd; do \
+	  base=$(basename "$f" .mmd); \
+	  FIGUREHEAD_LOG_LEVEL=off cargo run -q -p figurehead-cli -- convert -i "$f" --style unicode > "docs/ideal-output/current/${base}.unicode.current.txt"; \
+	done
+
+# Diff ideal targets vs current outputs (requires ideal-current first)
+ideal-diff: ideal-current
+	for f in docs/ideal-output/*.mmd; do \
+	  base=$(basename "$f" .mmd); \
+	  diff -u "docs/ideal-output/${base}.unicode.ideal.txt" "docs/ideal-output/current/${base}.unicode.current.txt" || true; \
+	done
