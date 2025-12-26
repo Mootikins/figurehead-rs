@@ -86,26 +86,6 @@ impl Orchestrator {
         }
     }
 
-    // === Deprecated aliases for backwards compatibility ===
-
-    #[deprecated(since = "0.2.0", note = "Use `flowchart(RenderConfig { style, ..Default::default() })` instead")]
-    pub fn with_flowchart_plugins_and_style(style: crate::core::CharacterSet) -> Self {
-        Self::flowchart(RenderConfig { style, ..Default::default() })
-    }
-
-    #[deprecated(since = "0.2.0", note = "Use `flowchart(RenderConfig::new(style, diamond_style))` instead")]
-    pub fn with_flowchart_plugins_and_styles(
-        style: crate::core::CharacterSet,
-        diamond_style: crate::core::DiamondStyle,
-    ) -> Self {
-        Self::flowchart(RenderConfig::new(style, diamond_style))
-    }
-
-    #[deprecated(since = "0.2.0", note = "Use `all_plugins(RenderConfig { style, ..Default::default() })` instead")]
-    pub fn with_all_plugins_and_style(style: crate::core::CharacterSet) -> Self {
-        Self::all_plugins(RenderConfig { style, ..Default::default() })
-    }
-
     /// Register a detector plugin
     pub fn register_detector(&mut self, name: String, detector: Box<dyn Detector>) {
         self.detectors.insert(name, detector);
