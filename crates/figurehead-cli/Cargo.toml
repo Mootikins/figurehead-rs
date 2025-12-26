@@ -16,7 +16,7 @@ name = "figurehead"
 path = "src/main.rs"
 
 [dependencies]
-figurehead = { path = "../figurehead" }
+figurehead = { version = "0.2.0", path = "../figurehead" }
 anyhow.workspace = true
 clap.workspace = true
 crossterm.workspace = true
