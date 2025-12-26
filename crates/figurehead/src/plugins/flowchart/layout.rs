@@ -37,11 +37,23 @@ pub struct PositionedEdge {
     pub group_size: Option<usize>,
 }
 
+/// Position data for a laid out subgraph (container)
+#[derive(Debug, Clone)]
+pub struct PositionedSubgraph {
+    pub id: String,
+    pub title: String,
+    pub x: usize,
+    pub y: usize,
+    pub width: usize,
+    pub height: usize,
+}
+
 /// Layout output containing positioned elements
 #[derive(Debug)]
 pub struct FlowchartLayoutResult {
     pub nodes: Vec<PositionedNode>,
     pub edges: Vec<PositionedEdge>,
+    pub subgraphs: Vec<PositionedSubgraph>,
     pub width: usize,
     pub height: usize,
 }
@@ -204,6 +216,7 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             return Ok(FlowchartLayoutResult {
                 nodes: Vec::new(),
                 edges: Vec::new(),
+                subgraphs: Vec::new(),
                 width: 0,
                 height: 0,
             });
@@ -520,11 +533,74 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         debug!(positioned_edge_count = positioned_edges.len(), "Edge routing completed");
         drop(_edge_enter);
 
+        // Calculate subgraph bounding boxes from member node positions
+        let subgraph_span = span!(Level::DEBUG, "calculate_subgraphs");
+        let _subgraph_enter = subgraph_span.enter();
+
+        // Build a lookup for positioned nodes by ID
+        let node_positions: HashMap<&str, &PositionedNode> = positioned_nodes
+            .iter()
+            .map(|n| (n.id.as_str(), n))
+            .collect();
+
+        let mut positioned_subgraphs = Vec::new();
+        for subgraph in database.subgraphs() {
+            if subgraph.members.is_empty() {
+                // Empty subgraph: render as minimal box at top-left with padding
+                positioned_subgraphs.push(PositionedSubgraph {
+                    id: subgraph.id.clone(),
+                    title: subgraph.title.clone(),
+                    x: self.config.padding,
+                    y: self.config.padding,
+                    // Width: title + padding for borders
+                    width: unicode_width::UnicodeWidthStr::width(subgraph.title.as_str()) + 4,
+                    height: 3, // Just title bar + empty interior
+                });
+                continue;
+            }
+
+            // Find bounding box of all member nodes
+            let mut min_x = usize::MAX;
+            let mut min_y = usize::MAX;
+            let mut max_x = 0usize;
+            let mut max_y = 0usize;
+
+            for member_id in &subgraph.members {
+                if let Some(node) = node_positions.get(member_id.as_str()) {
+                    min_x = min_x.min(node.x);
+                    min_y = min_y.min(node.y);
+                    max_x = max_x.max(node.x + node.width);
+                    max_y = max_y.max(node.y + node.height);
+                }
+            }
+
+            if min_x == usize::MAX {
+                // No members found (shouldn't happen, but defensive)
+                continue;
+            }
+
+            // Add padding for border: 1 cell each side, 1 cell top for title
+            let border_padding = 2;
+            let title_height = 1;
+
+            positioned_subgraphs.push(PositionedSubgraph {
+                id: subgraph.id.clone(),
+                title: subgraph.title.clone(),
+                x: min_x.saturating_sub(border_padding),
+                y: min_y.saturating_sub(border_padding + title_height),
+                width: (max_x - min_x) + border_padding * 2,
+                height: (max_y - min_y) + border_padding * 2 + title_height,
+            });
+        }
+        debug!(subgraph_count = positioned_subgraphs.len(), "Subgraph bounding boxes calculated");
+        drop(_subgraph_enter);
+
         let final_width = max_width + self.config.padding;
         let final_height = max_height + self.config.padding;
         info!(
             node_count = positioned_nodes.len(),
             edge_count = positioned_edges.len(),
+            subgraph_count = positioned_subgraphs.len(),
             width = final_width,
             height = final_height,
             "Layout completed"
@@ -533,6 +609,7 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         Ok(FlowchartLayoutResult {
             nodes: positioned_nodes,
             edges: positioned_edges,
+            subgraphs: positioned_subgraphs,
             width: final_width,
             height: final_height,
         })
@@ -945,5 +1022,59 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_subgraph_layout() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_simple_node("B", "Process").unwrap();
+        db.add_simple_node("C", "End").unwrap();
+        db.add_simple_edge("A", "B").unwrap();
+        db.add_simple_edge("B", "C").unwrap();
+
+        // Add subgraph containing A and B
+        db.add_subgraph("Group".to_string(), vec!["A".to_string(), "B".to_string()]);
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        // Should have one subgraph
+        assert_eq!(result.subgraphs.len(), 1);
+
+        let subgraph = &result.subgraphs[0];
+        assert_eq!(subgraph.id, "subgraph_0");
+        assert_eq!(subgraph.title, "Group");
+
+        // Subgraph should enclose nodes A and B
+        let node_a = result.nodes.iter().find(|n| n.id == "A").unwrap();
+        let node_b = result.nodes.iter().find(|n| n.id == "B").unwrap();
+
+        // Subgraph box should contain both nodes with padding
+        assert!(subgraph.x <= node_a.x);
+        assert!(subgraph.y <= node_a.y);
+        assert!(subgraph.x + subgraph.width >= node_a.x + node_a.width);
+        assert!(subgraph.x + subgraph.width >= node_b.x + node_b.width);
+        assert!(subgraph.y + subgraph.height >= node_b.y + node_b.height);
+    }
+
+    #[test]
+    fn test_empty_subgraph_layout() {
+        let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
+
+        db.add_simple_node("A", "Start").unwrap();
+        db.add_subgraph("Empty".to_string(), vec![]);
+
+        let layout = FlowchartLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        // Should have one subgraph
+        assert_eq!(result.subgraphs.len(), 1);
+
+        let subgraph = &result.subgraphs[0];
+        assert_eq!(subgraph.title, "Empty");
+        assert!(subgraph.width >= 4); // At least title width + borders
+        assert!(subgraph.height >= 3); // Minimum height
     }
 }

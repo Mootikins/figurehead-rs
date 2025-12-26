@@ -112,3 +112,44 @@ fn test_long_labels() {
         "graph LR; A[This is a very long label]-->B[Another long label here]",
     );
 }
+
+#[test]
+fn test_subgraph_td() {
+    assert_fixture(
+        "subgraph_td",
+        r#"graph TD
+            subgraph "Group"
+                A --> B
+                B --> C
+            end
+            C --> D"#,
+    );
+}
+
+#[test]
+fn test_subgraph_lr() {
+    assert_fixture(
+        "subgraph_lr",
+        r#"graph LR
+            subgraph "Services"
+                API --> DB
+            end
+            Client --> API
+            DB --> Backup"#,
+    );
+}
+
+#[test]
+fn test_subgraph_multiple() {
+    assert_fixture(
+        "subgraph_multiple",
+        r#"graph TD
+            subgraph "Alpha"
+                A --> B
+            end
+            subgraph "Beta"
+                C --> D
+            end
+            B --> C"#,
+    );
+}

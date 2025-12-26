@@ -32,12 +32,13 @@ Input → Detector → Parser → Database → Layout → Renderer → Output
 ### Diagram Types
 
 Currently supported:
-- Flowchart (basic implementation)
+- Flowchart with subgraphs (single-level nesting)
+- Git graphs
 
 Planned:
 - Sequence diagrams
 - Class diagrams
-- Subgraphs
+- Nested subgraphs
 - Styling with terminal colors
 
 ## Quick Start
@@ -86,6 +87,31 @@ let renderer = diagram.create_renderer();
 let output = renderer.render(&database)?;
 println!("{}", output);
 ```
+
+### Subgraph Support
+
+Figurehead supports single-level subgraphs to group related nodes:
+
+```bash
+echo 'graph LR
+    subgraph "Backend"
+        API --> DB
+    end
+    Client --> API' | figurehead convert -i -
+```
+
+Output:
+```
+            ┌── Backend ───┐
+┌────────┐  │ ┌─────┐ ┌────┐ │
+│ Client │──┼▶│ API │─▶│ DB │ │
+└────────┘  │ └─────┘ └────┘ │
+            └────────────────┘
+```
+
+**Limitations:**
+- Only single-level nesting is supported (nested subgraphs are flattened)
+- Subgraph borders may overlap if their nodes are not visually separated
 
 ## Logging
 

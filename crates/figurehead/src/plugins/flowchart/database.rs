@@ -9,6 +9,24 @@ use tracing::{debug, trace};
 
 use crate::core::{Database, Direction, EdgeData, EdgeType, NodeData, NodeShape};
 
+/// A subgraph container grouping related nodes
+#[derive(Debug, Clone)]
+pub struct Subgraph {
+    /// Unique identifier for this subgraph (e.g., "subgraph_0" or slugified title)
+    pub id: String,
+    /// Display title for the subgraph border
+    pub title: String,
+    /// Node IDs contained in this subgraph
+    pub members: Vec<String>,
+}
+
+impl Subgraph {
+    /// Create a new subgraph with the given title and members
+    pub fn new(id: String, title: String, members: Vec<String>) -> Self {
+        Self { id, title, members }
+    }
+}
+
 /// Flowchart database implementation
 ///
 /// Stores nodes, edges, and metadata for flowchart diagrams.
@@ -23,6 +41,10 @@ pub struct FlowchartDatabase {
     edges: Vec<EdgeData>,
     /// Node IDs in insertion order (for deterministic iteration)
     node_order: Vec<String>,
+    /// Subgraphs in insertion order
+    subgraphs: Vec<Subgraph>,
+    /// Counter for generating unique subgraph IDs
+    subgraph_counter: usize,
 }
 
 impl FlowchartDatabase {
@@ -173,6 +195,72 @@ impl FlowchartDatabase {
             .filter(|e| e.from == from && e.to == to)
             .collect()
     }
+
+    /// Add a subgraph with the given title and member node IDs
+    ///
+    /// Returns the generated subgraph ID. Nodes that are already in another
+    /// subgraph are silently ignored (first subgraph wins).
+    pub fn add_subgraph(&mut self, title: String, members: Vec<String>) -> String {
+        let id = format!("subgraph_{}", self.subgraph_counter);
+        self.subgraph_counter += 1;
+
+        // Filter out nodes that are already in another subgraph
+        let existing_members: std::collections::HashSet<&str> = self
+            .subgraphs
+            .iter()
+            .flat_map(|s| s.members.iter().map(|m| m.as_str()))
+            .collect();
+
+        let filtered_members: Vec<String> = members
+            .into_iter()
+            .filter(|m| {
+                if existing_members.contains(m.as_str()) {
+                    trace!(node_id = %m, subgraph_id = %id, "Node already in another subgraph, skipping");
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        trace!(
+            subgraph_id = %id,
+            subgraph_title = %title,
+            member_count = filtered_members.len(),
+            "Adding subgraph to database"
+        );
+
+        self.subgraphs.push(Subgraph::new(
+            id.clone(),
+            title,
+            filtered_members,
+        ));
+
+        debug!(subgraph_count = self.subgraphs.len(), "Subgraph added");
+        id
+    }
+
+    /// Get a subgraph by ID
+    pub fn get_subgraph(&self, id: &str) -> Option<&Subgraph> {
+        self.subgraphs.iter().find(|s| s.id == id)
+    }
+
+    /// Iterate over all subgraphs
+    pub fn subgraphs(&self) -> impl Iterator<Item = &Subgraph> {
+        self.subgraphs.iter()
+    }
+
+    /// Get the subgraph that contains a given node, if any
+    pub fn node_subgraph(&self, node_id: &str) -> Option<&Subgraph> {
+        self.subgraphs
+            .iter()
+            .find(|s| s.members.iter().any(|m| m == node_id))
+    }
+
+    /// Get the count of subgraphs
+    pub fn subgraph_count(&self) -> usize {
+        self.subgraphs.len()
+    }
 }
 
 impl Database for FlowchartDatabase {
@@ -218,6 +306,8 @@ impl Database for FlowchartDatabase {
         self.nodes.clear();
         self.edges.clear();
         self.node_order.clear();
+        self.subgraphs.clear();
+        self.subgraph_counter = 0;
     }
 
     fn node_count(&self) -> usize {
@@ -410,5 +500,85 @@ mod tests {
         // Should iterate in insertion order
         let ids: Vec<_> = db.nodes().map(|n| n.id.as_str()).collect();
         assert_eq!(ids, vec!["C", "A", "B"]);
+    }
+
+    #[test]
+    fn test_subgraph_basic() {
+        let mut db = FlowchartDatabase::new();
+
+        db.add_simple_node("A", "Node A").unwrap();
+        db.add_simple_node("B", "Node B").unwrap();
+
+        let id = db.add_subgraph("Cluster".to_string(), vec!["A".to_string(), "B".to_string()]);
+
+        assert_eq!(id, "subgraph_0");
+        assert_eq!(db.subgraph_count(), 1);
+
+        let sg = db.get_subgraph("subgraph_0").unwrap();
+        assert_eq!(sg.title, "Cluster");
+        assert_eq!(sg.members, vec!["A", "B"]);
+    }
+
+    #[test]
+    fn test_subgraph_node_lookup() {
+        let mut db = FlowchartDatabase::new();
+
+        db.add_simple_node("A", "Node A").unwrap();
+        db.add_simple_node("B", "Node B").unwrap();
+        db.add_simple_node("C", "Node C").unwrap();
+
+        db.add_subgraph("Group 1".to_string(), vec!["A".to_string(), "B".to_string()]);
+
+        assert!(db.node_subgraph("A").is_some());
+        assert_eq!(db.node_subgraph("A").unwrap().title, "Group 1");
+        assert!(db.node_subgraph("C").is_none());
+    }
+
+    #[test]
+    fn test_subgraph_first_wins() {
+        let mut db = FlowchartDatabase::new();
+
+        db.add_simple_node("A", "Node A").unwrap();
+
+        db.add_subgraph("First".to_string(), vec!["A".to_string()]);
+        db.add_subgraph("Second".to_string(), vec!["A".to_string()]);
+
+        // A should only be in the first subgraph
+        assert_eq!(db.subgraph_count(), 2);
+        let first = db.get_subgraph("subgraph_0").unwrap();
+        let second = db.get_subgraph("subgraph_1").unwrap();
+
+        assert_eq!(first.members, vec!["A"]);
+        assert!(second.members.is_empty());
+    }
+
+    #[test]
+    fn test_subgraph_iteration() {
+        let mut db = FlowchartDatabase::new();
+
+        db.add_subgraph("Alpha".to_string(), vec![]);
+        db.add_subgraph("Beta".to_string(), vec![]);
+
+        let titles: Vec<_> = db.subgraphs().map(|s| s.title.as_str()).collect();
+        assert_eq!(titles, vec!["Alpha", "Beta"]);
+    }
+
+    #[test]
+    fn test_subgraph_clear() {
+        let mut db = FlowchartDatabase::new();
+
+        db.add_simple_node("A", "A").unwrap();
+        db.add_subgraph("Test".to_string(), vec!["A".to_string()]);
+
+        assert_eq!(db.subgraph_count(), 1);
+
+        db.clear();
+
+        assert_eq!(db.subgraph_count(), 0);
+        assert_eq!(db.node_count(), 0);
+
+        // Counter should reset, so next subgraph gets id 0 again
+        let id = db.add_subgraph("New".to_string(), vec![]);
+        assert_eq!(id, "subgraph_0");
     }
 }

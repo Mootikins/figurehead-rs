@@ -309,14 +309,52 @@ fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> R
             };
             database.add_edge(edge_data)?;
         }
-        Statement::Subgraph(_, children) => {
+        Statement::Subgraph(title, children) => {
+            // Collect node IDs from children before applying them
+            let member_ids = collect_node_ids(children);
+
+            // Apply child statements to add nodes and edges
             for child in children {
                 apply_statement(child, database)?;
             }
+
+            // Register the subgraph with its members
+            database.add_subgraph(title.clone(), member_ids);
         }
     }
 
     Ok(())
+}
+
+/// Collect all node IDs from a list of statements (for subgraph membership)
+fn collect_node_ids(statements: &[Statement]) -> Vec<String> {
+    let mut ids = Vec::new();
+    for statement in statements {
+        match statement {
+            Statement::Node(node) => {
+                ids.push(node.id.clone());
+            }
+            Statement::Edge(edge) => {
+                // Add both ends of the edge as members
+                if !ids.contains(&edge.from) {
+                    ids.push(edge.from.clone());
+                }
+                if !ids.contains(&edge.to) {
+                    ids.push(edge.to.clone());
+                }
+            }
+            Statement::Subgraph(_, children) => {
+                // For nested subgraphs (not supported visually yet), flatten the nodes
+                // The nested subgraph's nodes belong to the outer subgraph
+                for child_id in collect_node_ids(children) {
+                    if !ids.contains(&child_id) {
+                        ids.push(child_id);
+                    }
+                }
+            }
+        }
+    }
+    ids
 }
 
 /// Ensure a node exists, using shape info from the reference if available
@@ -505,6 +543,15 @@ mod tests {
 
         assert_eq!(database.edge_count(), 2);
         assert_eq!(database.node_count(), 3);
+
+        // Verify subgraph was registered
+        assert_eq!(database.subgraph_count(), 1);
+        let sg = database.get_subgraph("subgraph_0").unwrap();
+        assert_eq!(sg.title, "Group");
+        assert_eq!(sg.members.len(), 3);
+        assert!(sg.members.contains(&"A".to_string()));
+        assert!(sg.members.contains(&"B".to_string()));
+        assert!(sg.members.contains(&"C".to_string()));
     }
 
     #[test]
@@ -765,5 +812,46 @@ mod tests {
         // Empty subgraph should be handled gracefully
         assert_eq!(database.node_count(), 0);
         assert_eq!(database.edge_count(), 0);
+
+        // Subgraph should still be registered, just with no members
+        assert_eq!(database.subgraph_count(), 1);
+        let sg = database.get_subgraph("subgraph_0").unwrap();
+        assert_eq!(sg.title, "Empty");
+        assert!(sg.members.is_empty());
+    }
+
+    #[test]
+    fn test_parser_multiple_subgraphs() {
+        let parser = FlowchartParser::new();
+        let mut database = FlowchartDatabase::new();
+
+        let input = r#"graph TD
+            subgraph "Alpha"
+                A --> B
+            end
+            subgraph "Beta"
+                C --> D
+            end
+            B --> C"#;
+
+        parser.parse(input, &mut database).unwrap();
+
+        assert_eq!(database.subgraph_count(), 2);
+        assert_eq!(database.node_count(), 4);
+        assert_eq!(database.edge_count(), 3);
+
+        let alpha = database.get_subgraph("subgraph_0").unwrap();
+        assert_eq!(alpha.title, "Alpha");
+        assert!(alpha.members.contains(&"A".to_string()));
+        assert!(alpha.members.contains(&"B".to_string()));
+
+        let beta = database.get_subgraph("subgraph_1").unwrap();
+        assert_eq!(beta.title, "Beta");
+        assert!(beta.members.contains(&"C".to_string()));
+        assert!(beta.members.contains(&"D".to_string()));
+
+        // Verify node-to-subgraph lookup
+        assert_eq!(database.node_subgraph("A").unwrap().id, "subgraph_0");
+        assert_eq!(database.node_subgraph("D").unwrap().id, "subgraph_1");
     }
 }

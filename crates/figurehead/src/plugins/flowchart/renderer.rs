@@ -5,7 +5,7 @@
 use anyhow::Result;
 use tracing::{debug, info, span, trace, Level};
 
-use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode};
+use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode, PositionedSubgraph};
 use crate::core::{CharacterSet, Database, DiamondStyle, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
 
 /// ASCII canvas representing the final diagram
@@ -267,6 +267,81 @@ impl FlowchartRenderer {
             NodeShape::Parallelogram => self.draw_parallelogram(canvas, node, label),
             NodeShape::Trapezoid => self.draw_trapezoid(canvas, node, label),
         }
+    }
+
+    /// Draw a subgraph boundary with centered title
+    fn draw_subgraph(&self, canvas: &mut AsciiCanvas, subgraph: &PositionedSubgraph) {
+        use unicode_width::UnicodeWidthStr;
+
+        let chars = BoxChars::rectangle(self.style);
+        let x = subgraph.x;
+        let y = subgraph.y;
+        let w = subgraph.width;
+        let h = subgraph.height;
+
+        if w < 2 || h < 2 {
+            return; // Too small to draw
+        }
+
+        // Calculate title positioning - center title in top border
+        let title = &subgraph.title;
+        let title_width = UnicodeWidthStr::width(title.as_str());
+
+        // Format: ┌─── Title ───┐
+        // We need at least 3 chars on each side for the pattern
+        let total_dashes = w.saturating_sub(2); // excluding corners
+        let title_with_padding = if title_width + 4 <= total_dashes {
+            // Format: "── Title ──"
+            let remaining = total_dashes.saturating_sub(title_width + 2); // 2 for spaces around title
+            let left_dashes = remaining / 2;
+            let right_dashes = remaining - left_dashes;
+
+            let dash_char = if self.style == CharacterSet::Ascii || self.style == CharacterSet::Compact {
+                '-'
+            } else {
+                '─'
+            };
+
+            format!(
+                "{} {} {}",
+                std::iter::repeat(dash_char).take(left_dashes).collect::<String>(),
+                title,
+                std::iter::repeat(dash_char).take(right_dashes).collect::<String>()
+            )
+        } else {
+            // Title too long, truncate if needed
+            let truncated: String = title.chars().take(total_dashes.saturating_sub(2)).collect();
+            format!(
+                " {} ",
+                truncated
+            )
+        };
+
+        // Top border with title
+        canvas.set_char(x, y, chars.top_left);
+        for (i, c) in title_with_padding.chars().enumerate() {
+            if i + 1 < w - 1 {
+                canvas.set_char(x + 1 + i, y, c);
+            }
+        }
+        // Fill remaining with horizontal line
+        for i in (1 + title_with_padding.chars().count())..w - 1 {
+            canvas.set_char(x + i, y, chars.horizontal);
+        }
+        canvas.set_char(x + w - 1, y, chars.top_right);
+
+        // Left and right borders (only - don't fill interior)
+        for row in 1..h - 1 {
+            canvas.set_char(x, y + row, chars.vertical);
+            canvas.set_char(x + w - 1, y + row, chars.vertical);
+        }
+
+        // Bottom border
+        canvas.set_char(x, y + h - 1, chars.bottom_left);
+        for i in 1..w - 1 {
+            canvas.set_char(x + i, y + h - 1, chars.horizontal);
+        }
+        canvas.set_char(x + w - 1, y + h - 1, chars.bottom_right);
     }
 
     fn draw_rectangle(
@@ -1477,6 +1552,24 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
         let mut canvas = AsciiCanvas::new(layout.width, layout.height);
         debug!("Created ASCII canvas");
         drop(_canvas_enter);
+
+        // Draw subgraphs first (background layer)
+        let subgraph_span = span!(Level::DEBUG, "draw_subgraphs", subgraph_count = layout.subgraphs.len());
+        let _subgraph_enter = subgraph_span.enter();
+        for subgraph in &layout.subgraphs {
+            trace!(
+                subgraph_id = %subgraph.id,
+                subgraph_title = %subgraph.title,
+                x = subgraph.x,
+                y = subgraph.y,
+                width = subgraph.width,
+                height = subgraph.height,
+                "Drawing subgraph"
+            );
+            self.draw_subgraph(&mut canvas, subgraph);
+        }
+        debug!(subgraph_count = layout.subgraphs.len(), "Drew subgraphs");
+        drop(_subgraph_enter);
 
         // Draw edges first (so nodes overlay them)
         let edge_span = span!(Level::DEBUG, "draw_edges", edge_count = layout.edges.len());
