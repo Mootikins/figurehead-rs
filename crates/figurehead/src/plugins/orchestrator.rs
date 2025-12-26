@@ -47,12 +47,24 @@ impl Orchestrator {
 
     /// Create a new orchestrator with flowchart plugins and a specific renderer style
     pub fn with_flowchart_plugins_and_style(style: crate::core::CharacterSet) -> Self {
+        Self::with_flowchart_plugins_and_styles(style, crate::core::DiamondStyle::default())
+    }
+
+    /// Create a new orchestrator with flowchart plugins and specific styles
+    pub fn with_flowchart_plugins_and_styles(
+        style: crate::core::CharacterSet,
+        diamond_style: crate::core::DiamondStyle,
+    ) -> Self {
+        let mut layout = crate::plugins::flowchart::FlowchartLayoutAlgorithm::new();
+        layout.config_mut().diamond_style = diamond_style;
+
         Self {
             detectors: HashMap::new(),
             flowchart_parser: Some(crate::plugins::flowchart::FlowchartParser::new()),
-            flowchart_layout: Some(crate::plugins::flowchart::FlowchartLayoutAlgorithm::new()),
-            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_style(
+            flowchart_layout: Some(layout),
+            ascii_renderer: Some(crate::plugins::flowchart::FlowchartRenderer::with_styles(
                 style,
+                diamond_style,
             )),
             gitgraph_parser: None,
             gitgraph_layout: None,

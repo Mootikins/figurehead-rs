@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use figurehead::core::logging::init_logging;
 use figurehead::plugins::flowchart::FlowchartDetector;
 use figurehead::plugins::Orchestrator;
-use figurehead::CharacterSet;
+use figurehead::{CharacterSet, DiamondStyle};
 
 /// Figurehead - Convert Mermaid.js diagrams to ASCII art
 #[derive(Parser)]
@@ -99,6 +99,14 @@ pub enum Commands {
             default_value_t = StyleChoice::Unicode
         )]
         style: StyleChoice,
+
+        /// Diamond (decision) node style
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = DiamondChoice::Box
+        )]
+        diamond: DiamondChoice,
     },
 
     /// Detect diagram type in input
@@ -143,6 +151,28 @@ impl From<StyleChoice> for CharacterSet {
     }
 }
 
+/// Diamond (decision node) rendering styles
+#[derive(Copy, Clone, Debug, ValueEnum, PartialEq, Eq, Default)]
+pub enum DiamondChoice {
+    /// Compact 3-line box with ◆ corners
+    #[default]
+    Box,
+    /// Minimal single-line ◆ text ◆
+    Inline,
+    /// Traditional tall diamond with /\ and \/
+    Tall,
+}
+
+impl From<DiamondChoice> for DiamondStyle {
+    fn from(value: DiamondChoice) -> Self {
+        match value {
+            DiamondChoice::Box => DiamondStyle::Box,
+            DiamondChoice::Inline => DiamondStyle::Inline,
+            DiamondChoice::Tall => DiamondStyle::Tall,
+        }
+    }
+}
+
 /// Main CLI application
 pub struct FigureheadApp {
     orchestrator: Orchestrator,
@@ -152,20 +182,29 @@ impl FigureheadApp {
     /// Create a new application instance
     pub fn new() -> Self {
         Self {
-            orchestrator: Self::build_orchestrator(StyleChoice::Unicode),
+            orchestrator: Self::build_orchestrator(StyleChoice::Unicode, DiamondChoice::Box),
         }
     }
 
     /// Create a new application instance with a specific renderer style
     pub fn with_style(style: StyleChoice) -> Self {
         Self {
-            orchestrator: Self::build_orchestrator(style),
+            orchestrator: Self::build_orchestrator(style, DiamondChoice::Box),
         }
     }
 
-    fn build_orchestrator(style: StyleChoice) -> Orchestrator {
-        let mut orchestrator = Orchestrator::with_flowchart_plugins_and_style(style.into());
-        orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
+    /// Create a new application instance with specific style and diamond options
+    pub fn with_options(style: StyleChoice, diamond: DiamondChoice) -> Self {
+        Self {
+            orchestrator: Self::build_orchestrator(style, diamond),
+        }
+    }
+
+    fn build_orchestrator(style: StyleChoice, diamond: DiamondChoice) -> Orchestrator {
+        let mut orchestrator =
+            Orchestrator::with_flowchart_plugins_and_styles(style.into(), diamond.into());
+        orchestrator
+            .register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
         orchestrator
     }
 
@@ -199,7 +238,8 @@ impl FigureheadApp {
                 output,
                 skip_detection,
                 style,
-            } => self.convert_command(input, output, skip_detection, style, cli.verbose),
+                diamond,
+            } => self.convert_command(input, output, skip_detection, style, diamond, cli.verbose),
             Commands::Detect { input } => self.detect_command(input, cli.verbose),
             Commands::Types { json } => self.types_command(json, cli.verbose),
             Commands::Validate { input } => self.validate_command(input, cli.verbose),
@@ -213,6 +253,7 @@ impl FigureheadApp {
         output: Option<PathBuf>,
         skip_detection: bool,
         style: StyleChoice,
+        diamond: DiamondChoice,
         verbose: bool,
     ) -> Result<()> {
         // Read input
@@ -222,8 +263,8 @@ impl FigureheadApp {
             eprintln!("Read {} bytes of input", content.len());
         }
 
-        // Apply style to renderer
-        self.orchestrator = Self::build_orchestrator(style);
+        // Apply style and diamond options to renderer
+        self.orchestrator = Self::build_orchestrator(style, diamond);
 
         // Process the diagram
         let result = if skip_detection {
@@ -435,11 +476,31 @@ mod tests {
                 output,
                 skip_detection,
                 style,
+                diamond,
             } => {
                 assert_eq!(input.unwrap().to_string_lossy(), "test.mmd");
                 assert_eq!(output.unwrap().to_string_lossy(), "output.txt");
                 assert!(!skip_detection);
                 assert_eq!(style, StyleChoice::Ascii);
+                assert_eq!(diamond, DiamondChoice::Box); // default
+            }
+            _ => panic!("Expected Convert command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parsing_diamond_option() {
+        let args = vec![
+            "figurehead",
+            "convert",
+            "--diamond",
+            "tall",
+        ];
+        let cli = Cli::try_parse_from(args).unwrap();
+
+        match cli.command {
+            Commands::Convert { diamond, .. } => {
+                assert_eq!(diamond, DiamondChoice::Tall);
             }
             _ => panic!("Expected Convert command"),
         }

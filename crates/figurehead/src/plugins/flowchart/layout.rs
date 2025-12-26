@@ -88,6 +88,11 @@ impl FlowchartLayoutAlgorithm {
         Self { config }
     }
 
+    /// Get mutable access to the layout configuration
+    pub fn config_mut(&mut self) -> &mut LayoutConfig {
+        &mut self.config
+    }
+
     /// Wrap a label into multiple lines if it exceeds max_label_width
     fn wrap_label(&self, label: &str) -> Vec<String> {
         let max_width = self.config.max_label_width;
