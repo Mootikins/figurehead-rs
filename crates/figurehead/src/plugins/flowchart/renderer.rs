@@ -748,10 +748,12 @@ impl FlowchartRenderer {
             }
         } else {
             // Orthogonal routing: horizontal first, then vertical
+            // For edges going right then down/up, place turn point 1 col before target
+            // to leave room for the arrow to connect to the node's side
             let mid_y = y1;
-            let turn_x = x2;
+            let turn_x = if x2 > x1 { x2.saturating_sub(1) } else { x2 + 1 };
 
-            // Horizontal segment (full length to turn)
+            // Horizontal segment to turn point
             self.draw_horizontal_line(canvas, mid_y, x1, turn_x, &chars);
 
             // Corner at turn point
@@ -764,16 +766,13 @@ impl FlowchartRenderer {
             };
             canvas.set_char(turn_x, mid_y, corner);
 
-            // Vertical segment - adjust endpoint for arrow
-            let end_y = if has_arrow {
-                if y2 > y1 { y2.saturating_sub(1) } else { y2 + 1 }
-            } else {
-                y2
-            };
-            self.draw_vertical_line(canvas, turn_x, mid_y, end_y, &chars);
+            // Vertical segment from corner toward target
+            self.draw_vertical_line(canvas, turn_x, mid_y, y2, &chars);
+
+            // Arrow pointing horizontally into target node
             if has_arrow {
-                let arrow = if y2 > y1 { chars.arrow_down } else { chars.arrow_up };
-                canvas.set_char(turn_x, end_y, arrow);
+                let arrow = if x2 > x1 { chars.arrow_right } else { chars.arrow_left };
+                canvas.set_char(turn_x, y2, arrow);
             }
         }
     }
