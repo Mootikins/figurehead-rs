@@ -158,6 +158,9 @@ pub struct FlowchartRenderer {
     style: CharacterSet,
 }
 
+/// Max label width before wrapping (must match layout config)
+const MAX_LABEL_WIDTH: usize = 30;
+
 impl FlowchartRenderer {
     /// Create a new renderer with default Unicode style
     pub fn new() -> Self {
@@ -174,6 +177,46 @@ impl FlowchartRenderer {
     /// Get the current character set
     pub fn style(&self) -> CharacterSet {
         self.style
+    }
+
+    /// Wrap a label into multiple lines if it exceeds max width
+    fn wrap_label(label: &str, max_width: usize) -> Vec<String> {
+        use unicode_width::UnicodeWidthStr;
+
+        if max_width == 0 || UnicodeWidthStr::width(label) <= max_width {
+            return vec![label.to_string()];
+        }
+
+        let mut lines = Vec::new();
+        let mut current_line = String::new();
+        let mut current_width = 0;
+
+        for word in label.split_whitespace() {
+            let word_width = UnicodeWidthStr::width(word);
+
+            if current_width == 0 {
+                current_line = word.to_string();
+                current_width = word_width;
+            } else if current_width + 1 + word_width <= max_width {
+                current_line.push(' ');
+                current_line.push_str(word);
+                current_width += 1 + word_width;
+            } else {
+                lines.push(current_line);
+                current_line = word.to_string();
+                current_width = word_width;
+            }
+        }
+
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+
+        if lines.is_empty() {
+            lines.push(label.to_string());
+        }
+
+        lines
     }
 
     fn draw_node(
@@ -210,6 +253,8 @@ impl FlowchartRenderer {
         label: &str,
         chars: BoxChars,
     ) {
+        use unicode_width::UnicodeWidthStr;
+
         let x = node.x;
         let y = node.y;
         let w = node.width;
@@ -228,10 +273,19 @@ impl FlowchartRenderer {
             canvas.set_char(x + w - 1, y + row, chars.vertical);
         }
 
-        // Label centered
-        let label_y = y + h / 2;
-        let label_x = x + (w.saturating_sub(label.len())) / 2;
-        canvas.draw_text(label_x.max(x + 1), label_y, label);
+        // Wrap and draw label(s) centered vertically and horizontally
+        let lines = Self::wrap_label(label, MAX_LABEL_WIDTH);
+        let total_lines = lines.len();
+        let start_y = y + (h.saturating_sub(total_lines)) / 2;
+
+        for (i, line) in lines.iter().enumerate() {
+            let line_width = UnicodeWidthStr::width(line.as_str());
+            let label_x = x + (w.saturating_sub(line_width)) / 2;
+            let label_y = start_y + i;
+            if label_y > y && label_y < y + h - 1 {
+                canvas.draw_text(label_x.max(x + 1), label_y, line);
+            }
+        }
 
         // Bottom border
         canvas.set_char(x, y + h - 1, chars.bottom_left);

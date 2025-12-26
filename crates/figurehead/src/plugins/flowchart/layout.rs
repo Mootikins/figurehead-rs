@@ -52,6 +52,7 @@ pub struct LayoutConfig {
     pub min_node_width: usize,
     pub min_node_height: usize,
     pub padding: usize,
+    pub max_label_width: usize, // Max width before label wraps (0 = no wrap)
 }
 
 impl Default for LayoutConfig {
@@ -62,6 +63,7 @@ impl Default for LayoutConfig {
             min_node_width: 5,
             min_node_height: 3,
             padding: 1,       // was 2: canvas edge padding
+            max_label_width: 30, // Wrap labels longer than 30 chars
         }
     }
 }
@@ -82,9 +84,57 @@ impl FlowchartLayoutAlgorithm {
         Self { config }
     }
 
+    /// Wrap a label into multiple lines if it exceeds max_label_width
+    fn wrap_label(&self, label: &str) -> Vec<String> {
+        let max_width = self.config.max_label_width;
+        if max_width == 0 || UnicodeWidthStr::width(label) <= max_width {
+            return vec![label.to_string()];
+        }
+
+        let mut lines = Vec::new();
+        let mut current_line = String::new();
+        let mut current_width = 0;
+
+        for word in label.split_whitespace() {
+            let word_width = UnicodeWidthStr::width(word);
+
+            if current_width == 0 {
+                // First word on line
+                current_line = word.to_string();
+                current_width = word_width;
+            } else if current_width + 1 + word_width <= max_width {
+                // Word fits on current line
+                current_line.push(' ');
+                current_line.push_str(word);
+                current_width += 1 + word_width;
+            } else {
+                // Start new line
+                lines.push(current_line);
+                current_line = word.to_string();
+                current_width = word_width;
+            }
+        }
+
+        if !current_line.is_empty() {
+            lines.push(current_line);
+        }
+
+        if lines.is_empty() {
+            lines.push(label.to_string());
+        }
+
+        lines
+    }
+
     /// Calculate node dimensions based on shape and label
     fn calculate_node_size(&self, label: &str, shape: NodeShape) -> (usize, usize) {
-        let label_width = UnicodeWidthStr::width(label);
+        let wrapped_lines = self.wrap_label(label);
+        let label_width = wrapped_lines
+            .iter()
+            .map(|l| UnicodeWidthStr::width(l.as_str()))
+            .max()
+            .unwrap_or(0);
+        let label_lines = wrapped_lines.len();
 
         let (extra_width, extra_height) = match shape {
             NodeShape::Rectangle | NodeShape::RoundedRect | NodeShape::Subroutine => (4, 0),
@@ -96,7 +146,9 @@ impl FlowchartLayoutAlgorithm {
         };
 
         let width = (label_width + extra_width).max(self.config.min_node_width);
-        let height = (3 + extra_height).max(self.config.min_node_height);
+        // Add extra height for multi-line labels (each extra line adds 1)
+        let base_height = 3 + extra_height;
+        let height = (base_height + label_lines.saturating_sub(1)).max(self.config.min_node_height);
 
         (width, height)
     }
