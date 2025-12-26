@@ -272,10 +272,16 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         match direction {
             Direction::TopDown | Direction::BottomUp => {
                 // Vertical layout: layers are rows (Y), nodes distributed on X
-                // Find the widest node to establish the center line for alignment
-                let widest_node_width = node_sizes.values().map(|(w, _)| *w).max().unwrap_or(0);
-                // Center X is at padding + widest_node_width / 2
-                let center_x = self.config.padding + widest_node_width / 2;
+                // Find the widest layer (sum of node widths + gaps) for centering
+                let widest_layer_width = layer_nodes.iter()
+                    .map(|layer| {
+                        let total: usize = layer.iter().map(|&id| node_sizes[id].0).sum();
+                        total + layer.len().saturating_sub(1) * self.config.node_sep
+                    })
+                    .max()
+                    .unwrap_or(0);
+                // Center X is at padding + widest_layer_width / 2
+                let center_x = self.config.padding + widest_layer_width / 2;
 
                 let mut y = self.config.padding;
 
