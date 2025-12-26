@@ -27,8 +27,10 @@ pub struct PositionedEdge {
     pub from_id: String,
     pub to_id: String,
     pub waypoints: Vec<(usize, usize)>,
-    /// For grouped edges from same source, the shared junction point
+    /// For grouped edges from same source (split), the shared junction point
     pub junction: Option<(usize, usize)>,
+    /// For grouped edges to same target (merge), the shared junction point
+    pub merge_junction: Option<(usize, usize)>,
     /// Index within the edge group (0 = first/leftmost in TD)
     pub group_index: Option<usize>,
     /// Total edges in this group
@@ -389,14 +391,17 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         );
         drop(_position_enter);
 
-        // Route edges with grouping for splits
+        // Route edges with grouping for splits and merges
         let edge_span = span!(Level::DEBUG, "route_edges");
         let _edge_enter = edge_span.enter();
 
-        // Group edges by source node
+        // Group edges by source node (for splits)
         let mut edges_by_source: HashMap<&str, Vec<&crate::core::EdgeData>> = HashMap::new();
+        // Group edges by target node (for merges)
+        let mut edges_by_target: HashMap<&str, Vec<&crate::core::EdgeData>> = HashMap::new();
         for edge in database.edges() {
             edges_by_source.entry(&edge.from).or_default().push(edge);
+            edges_by_target.entry(&edge.to).or_default().push(edge);
         }
 
         let mut positioned_edges = Vec::new();
@@ -404,6 +409,22 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             .iter()
             .map(|n| (n.id.as_str(), n))
             .collect();
+
+        // Pre-calculate merge junctions for targets with multiple incoming edges
+        let mut merge_junctions: HashMap<&str, (usize, usize)> = HashMap::new();
+        for (target_id, incoming_edges) in &edges_by_target {
+            if incoming_edges.len() > 1 {
+                if let Some(to) = node_positions.get(*target_id) {
+                    let merge_point = match direction {
+                        Direction::TopDown => (to.x + to.width / 2, to.y.saturating_sub(2)),
+                        Direction::BottomUp => (to.x + to.width / 2, to.y + to.height + 2),
+                        Direction::LeftRight => (to.x.saturating_sub(2), to.y + to.height / 2),
+                        Direction::RightLeft => (to.x + to.width + 2, to.y + to.height / 2),
+                    };
+                    merge_junctions.insert(*target_id, merge_point);
+                }
+            }
+        }
 
         for (source_id, edges) in edges_by_source {
             let Some(from) = node_positions.get(source_id) else { continue };
@@ -431,6 +452,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
 
             for (group_index, edge) in sorted_edges.into_iter().enumerate() {
                 let Some(to) = node_positions.get(edge.to.as_str()) else { continue };
+
+                // Check if this edge is part of a merge
+                let merge_junction = merge_junctions.get(edge.to.as_str()).copied();
 
                 // Calculate exit and entry points
                 let (exit_x, exit_y, entry_x, entry_y) = match direction {
@@ -465,6 +489,7 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                     to_id: edge.to.clone(),
                     waypoints: vec![(exit_x, exit_y), (entry_x, entry_y)],
                     junction,
+                    merge_junction,
                     group_index: if is_split { Some(group_index) } else { None },
                     group_size: if is_split { Some(group_size) } else { None },
                 });
