@@ -5,9 +5,11 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
 description = "A Rust library to convert Mermaid.js diagram markup into ASCII diagrams"
-keywords = ["mermaid", "ascii", "diagram", "converter"]
-categories = ["graphics", "visualization", "parsing"]
+keywords = ["mermaid", "ascii", "diagram", "flowchart", "renderer"]
+categories = ["graphics", "visualization", "parsing", "text-processing"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

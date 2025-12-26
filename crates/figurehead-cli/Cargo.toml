@@ -5,8 +5,10 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
 description = "CLI tool to convert Mermaid.js diagram markup into ASCII diagrams"
-keywords = ["mermaid", "ascii", "diagram", "cli", "converter"]
+keywords = ["mermaid", "ascii", "diagram", "cli", "flowchart"]
 categories = ["command-line-utilities", "graphics", "visualization"]
 
 [[bin]]
