@@ -153,3 +153,101 @@ fn test_subgraph_multiple() {
             B --> C"#,
     );
 }
+
+// =============================================================================
+// Git Graph Snapshots
+// =============================================================================
+
+#[test]
+fn test_gitgraph_simple_td() {
+    assert_fixture(
+        "gitgraph_simple_td",
+        r#"gitGraph
+   commit
+   commit
+   commit"#,
+    );
+}
+
+#[test]
+fn test_gitgraph_simple_lr() {
+    assert_fixture(
+        "gitgraph_simple_lr",
+        r#"gitGraph LR
+   commit
+   commit
+   commit"#,
+    );
+}
+
+#[test]
+fn test_gitgraph_with_ids() {
+    assert_fixture(
+        "gitgraph_with_ids",
+        r#"gitGraph
+   commit id: "Initial"
+   commit id: "Feature"
+   commit id: "Release""#,
+    );
+}
+
+#[test]
+fn test_gitgraph_with_branch() {
+    assert_fixture(
+        "gitgraph_with_branch",
+        r#"gitGraph
+   commit
+   branch develop
+   checkout develop
+   commit
+   checkout main
+   commit"#,
+    );
+}
+
+// =============================================================================
+// Sequence Diagram Snapshots
+// =============================================================================
+
+#[test]
+fn test_sequence_simple() {
+    assert_fixture(
+        "sequence_simple",
+        r#"sequenceDiagram
+    Alice->>Bob: Hello
+    Bob-->>Alice: Hi"#,
+    );
+}
+
+#[test]
+fn test_sequence_three_participants() {
+    assert_fixture(
+        "sequence_three_participants",
+        r#"sequenceDiagram
+    Alice->>Bob: Hello
+    Bob->>Charlie: Hi there
+    Charlie-->>Alice: Hey!"#,
+    );
+}
+
+#[test]
+fn test_sequence_with_aliases() {
+    assert_fixture(
+        "sequence_with_aliases",
+        r#"sequenceDiagram
+    participant A as Alice
+    participant B as Bob
+    A->>B: Hello Bob!
+    B-->>A: Hi Alice!"#,
+    );
+}
+
+#[test]
+fn test_sequence_open_arrows() {
+    assert_fixture(
+        "sequence_open_arrows",
+        r#"sequenceDiagram
+    Alice->Bob: Sync call
+    Bob-->Alice: Sync response"#,
+    );
+}

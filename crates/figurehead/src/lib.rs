@@ -218,4 +218,15 @@ mod tests {
         let db = result.unwrap();
         assert_eq!(db.direction(), Direction::LeftRight);
     }
+
+    #[test]
+    fn test_render_sequence() {
+        let input = "sequenceDiagram\n    Alice->>Bob: Hello";
+        let result = render(input);
+        assert!(result.is_ok(), "render failed: {:?}", result.err());
+        let output = result.unwrap();
+        assert!(!output.is_empty());
+        assert!(output.contains("Alice"));
+        assert!(output.contains("Bob"));
+    }
 }

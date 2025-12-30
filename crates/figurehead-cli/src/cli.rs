@@ -185,7 +185,7 @@ impl FigureheadApp {
 
     /// Create a new application instance with a render config
     pub fn with_config(config: RenderConfig) -> Self {
-        let mut orchestrator = Orchestrator::flowchart(config);
+        let mut orchestrator = Orchestrator::all_plugins(config);
         orchestrator.register_default_detectors();
         Self { orchestrator }
     }
@@ -251,7 +251,7 @@ impl FigureheadApp {
 
         // Apply style and diamond options to renderer
         let config = Self::build_config(style, diamond);
-        let mut orchestrator = Orchestrator::flowchart(config);
+        let mut orchestrator = Orchestrator::all_plugins(config);
         orchestrator.register_default_detectors();
         self.orchestrator = orchestrator;
 

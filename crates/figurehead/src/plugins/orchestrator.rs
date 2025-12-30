@@ -10,6 +10,7 @@ use tracing::{debug, info, span, trace, warn, Level};
 use crate::core::{Database, Detector, Parser, Renderer, RenderConfig};
 use crate::plugins::flowchart::FlowchartDatabase;
 use crate::plugins::gitgraph::GitGraphDatabase;
+use crate::plugins::sequence::SequenceDatabase;
 
 /// Plugin orchestrator that coordinates the entire pipeline
 ///
@@ -24,6 +25,8 @@ pub struct Orchestrator {
     gitgraph_parser: Option<crate::plugins::gitgraph::GitGraphParser>,
     gitgraph_layout: Option<crate::plugins::gitgraph::GitGraphLayoutAlgorithm>,
     gitgraph_renderer: Option<crate::plugins::gitgraph::GitGraphRenderer>,
+    sequence_parser: Option<crate::plugins::sequence::SequenceParser>,
+    sequence_renderer: Option<crate::plugins::sequence::SequenceRenderer>,
 }
 
 impl Orchestrator {
@@ -37,6 +40,8 @@ impl Orchestrator {
             gitgraph_parser: None,
             gitgraph_layout: None,
             gitgraph_renderer: None,
+            sequence_parser: None,
+            sequence_renderer: None,
         }
     }
 
@@ -60,6 +65,8 @@ impl Orchestrator {
             gitgraph_parser: None,
             gitgraph_layout: None,
             gitgraph_renderer: None,
+            sequence_parser: None,
+            sequence_renderer: None,
         }
     }
 
@@ -83,6 +90,8 @@ impl Orchestrator {
             gitgraph_parser: Some(crate::plugins::gitgraph::GitGraphParser::new()),
             gitgraph_layout: Some(crate::plugins::gitgraph::GitGraphLayoutAlgorithm::new()),
             gitgraph_renderer: Some(crate::plugins::gitgraph::GitGraphRenderer::new()),
+            sequence_parser: Some(crate::plugins::sequence::SequenceParser::new()),
+            sequence_renderer: Some(crate::plugins::sequence::SequenceRenderer::new()),
         }
     }
 
@@ -91,12 +100,14 @@ impl Orchestrator {
         self.detectors.insert(name, detector);
     }
 
-    /// Register the default set of detectors (flowchart and gitgraph)
+    /// Register the default set of detectors (flowchart, gitgraph, sequence)
     pub fn register_default_detectors(&mut self) -> &mut Self {
         use crate::plugins::flowchart::FlowchartDetector;
         use crate::plugins::gitgraph::GitGraphDetector;
+        use crate::plugins::sequence::SequenceDetector;
         self.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
         self.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
+        self.register_detector("sequence".to_string(), Box::new(SequenceDetector::new()));
         self
     }
 
@@ -113,19 +124,35 @@ impl Orchestrator {
     }
 
     /// Detect diagram type from input text
+    ///
+    /// Finds the detector with highest confidence score.
     pub fn detect_diagram_type(&self, input: &str) -> Result<String> {
         let detect_span = span!(Level::INFO, "detect_diagram_type", input_len = input.len());
         let _enter = detect_span.enter();
 
         trace!("Starting diagram type detection");
 
+        // Find detector with highest confidence
+        let mut best_match: Option<(&str, f64)> = None;
+
         for (name, detector) in &self.detectors {
             let confidence = detector.confidence(input);
             trace!(detector = name, confidence, "Checking detector");
-            if detector.detect(input) {
-                info!(detector = name, confidence, "Detected diagram type");
-                return Ok(name.clone());
+
+            if confidence > 0.5 {
+                if let Some((_, best_conf)) = best_match {
+                    if confidence > best_conf {
+                        best_match = Some((name, confidence));
+                    }
+                } else {
+                    best_match = Some((name, confidence));
+                }
             }
+        }
+
+        if let Some((name, confidence)) = best_match {
+            info!(detector = name, confidence, "Detected diagram type");
+            return Ok(name.to_string());
         }
 
         warn!("No suitable detector found for input");
@@ -151,6 +178,7 @@ impl Orchestrator {
         match diagram_type.as_str() {
             "flowchart" => self.process_flowchart(input),
             "gitgraph" => self.process_gitgraph(input),
+            "sequence" => self.process_sequence(input),
             _ => {
                 warn!(diagram_type, "Unsupported diagram type");
                 Err(anyhow::anyhow!(
@@ -244,6 +272,48 @@ impl Orchestrator {
         drop(_render_enter);
 
         info!("Git graph processing completed successfully");
+        Ok(canvas)
+    }
+
+    /// Process sequence diagram input directly (skip detection)
+    ///
+    /// Useful when the caller already knows the diagram type.
+    pub fn process_sequence(&self, input: &str) -> Result<String> {
+        let sequence_span = span!(Level::INFO, "process_sequence", input_len = input.len());
+        let _enter = sequence_span.enter();
+
+        info!("Processing sequence diagram");
+
+        // Step 1: Parse the input
+        let parse_span = span!(Level::DEBUG, "pipeline_parse");
+        let _parse_enter = parse_span.enter();
+        let parser = self
+            .sequence_parser
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No sequence parser available"))?;
+
+        let mut database = SequenceDatabase::new();
+        parser.parse(input, &mut database)?;
+        debug!(
+            participant_count = database.participant_count(),
+            message_count = database.message_count(),
+            "Parsing completed"
+        );
+        drop(_parse_enter);
+
+        // Step 2: Render the result
+        let render_span = span!(Level::DEBUG, "pipeline_render");
+        let _render_enter = render_span.enter();
+        let renderer = self
+            .sequence_renderer
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No sequence renderer available"))?;
+
+        let canvas = renderer.render(&database)?;
+        debug!(output_len = canvas.len(), "Rendering completed");
+        drop(_render_enter);
+
+        info!("Sequence diagram processing completed successfully");
         Ok(canvas)
     }
 }

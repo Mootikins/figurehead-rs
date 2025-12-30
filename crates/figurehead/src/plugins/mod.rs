@@ -6,7 +6,9 @@
 pub mod flowchart;
 pub mod gitgraph;
 pub mod orchestrator;
+pub mod sequence;
 
 pub use flowchart::*;
 pub use gitgraph::*;
 pub use orchestrator::*;
+pub use sequence::*;
