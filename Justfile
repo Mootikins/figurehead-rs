@@ -2,9 +2,33 @@
 
 default: test
 
-# Run full test suite
+# Run full test suite with nextest
 test:
+	cargo nextest run
+
+# Run tests with standard cargo (fallback)
+test-cargo:
 	cargo test
+
+# Run tests showing only summary
+test-quiet:
+	@cargo nextest run 2>&1 | grep -E "Summary|FAIL|error\[" | grep -v "^$" || echo "All tests passed"
+
+# Run CI checks locally (fmt, clippy, test)
+ci: fmt-check clippy test
+	@echo "CI checks passed!"
+
+# Check formatting
+fmt-check:
+	cargo fmt --all -- --check
+
+# Fix formatting
+fmt:
+	cargo fmt --all
+
+# Run clippy lints
+clippy:
+	cargo clippy --all-targets
 
 # Update snapshot fixtures and run snapshot tests
 snapshots-update:
