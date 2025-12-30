@@ -8,7 +8,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-use crate::colorizer::colorize_output;
+use crate::colorizer::{colorize_output, extract_styles};
 use figurehead::core::logging::init_logging;
 use figurehead::plugins::Orchestrator;
 use figurehead::{CharacterSet, DiamondStyle, RenderConfig};
@@ -287,9 +287,10 @@ impl FigureheadApp {
                 if verbose {
                     eprintln!("Successfully converted diagram to ASCII");
                 }
-                // Apply colors if enabled
+                // Apply colors if enabled and styles are present
                 let final_output = if self.should_colorize(&output, color) {
-                    colorize_output(&ascii_output)
+                    let styles = extract_styles(&content);
+                    colorize_output(&content, &ascii_output, &styles)
                 } else {
                     ascii_output
                 };
