@@ -412,7 +412,7 @@ dependencies = [
 
 [[package]]
 name = "figurehead"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "chumsky",
@@ -430,7 +430,7 @@ dependencies = [
 
 [[package]]
 name = "figurehead-cli"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "clap",
