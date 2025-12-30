@@ -5,11 +5,18 @@
 use crate::core::{Database, EdgeData, NodeData, NodeShape};
 use anyhow::Result;
 
+/// Internal ID for start terminal
+pub const START_TERMINAL: &str = "[*]_start";
+/// Internal ID for end terminal
+pub const END_TERMINAL: &str = "[*]_end";
+
 /// State diagram database using core NodeData and EdgeData
 #[derive(Debug, Default)]
 pub struct StateDatabase {
     states: Vec<NodeData>,
     transitions: Vec<EdgeData>,
+    has_start: bool,
+    has_end: bool,
 }
 
 impl StateDatabase {
@@ -27,9 +34,9 @@ impl StateDatabase {
     }
 
     /// Ensure a state exists (creates implicit state if needed)
-    pub fn ensure_state(&mut self, id: &str) -> Result<()> {
+    fn ensure_state_internal(&mut self, id: &str) -> Result<()> {
         if !self.states.iter().any(|s| s.id == id) {
-            let shape = if id == "[*]" {
+            let shape = if id == START_TERMINAL || id == END_TERMINAL {
                 NodeShape::Terminal
             } else {
                 NodeShape::Rectangle
@@ -39,13 +46,46 @@ impl StateDatabase {
         Ok(())
     }
 
-    /// Add a transition
+    /// Add a transition, handling [*] as start or end terminal
     pub fn add_transition(&mut self, transition: EdgeData) -> Result<()> {
+        // Handle [*] specially - first as source = start, as target = end
+        let from = if transition.from == "[*]" {
+            self.has_start = true;
+            START_TERMINAL.to_string()
+        } else {
+            transition.from.clone()
+        };
+
+        let to = if transition.to == "[*]" {
+            self.has_end = true;
+            END_TERMINAL.to_string()
+        } else {
+            transition.to.clone()
+        };
+
         // Ensure states exist
-        self.ensure_state(&transition.from)?;
-        self.ensure_state(&transition.to)?;
-        self.transitions.push(transition);
+        self.ensure_state_internal(&from)?;
+        self.ensure_state_internal(&to)?;
+
+        // Create modified transition with internal IDs
+        let modified = EdgeData {
+            from,
+            to,
+            edge_type: transition.edge_type,
+            label: transition.label,
+        };
+        self.transitions.push(modified);
         Ok(())
+    }
+
+    /// Check if diagram has a start terminal
+    pub fn has_start_terminal(&self) -> bool {
+        self.has_start
+    }
+
+    /// Check if diagram has an end terminal
+    pub fn has_end_terminal(&self) -> bool {
+        self.has_end
     }
 
     /// Get all states
@@ -147,16 +187,39 @@ mod tests {
     }
 
     #[test]
-    fn test_terminal_state_shape() {
+    fn test_start_terminal_converted() {
         let mut db = StateDatabase::new();
-        db.ensure_state("[*]").unwrap();
-        db.ensure_state("Normal").unwrap();
+        db.add_transition(EdgeData::new("[*]", "Idle")).unwrap();
 
-        let terminal = db.get_node("[*]").unwrap();
-        let normal = db.get_node("Normal").unwrap();
+        // [*] as source should become [*]_start
+        assert!(db.has_start_terminal());
+        assert!(db.get_node(START_TERMINAL).is_some());
+        assert_eq!(db.get_node(START_TERMINAL).unwrap().shape, NodeShape::Terminal);
+    }
 
-        assert_eq!(terminal.shape, NodeShape::Terminal);
-        assert_eq!(normal.shape, NodeShape::Rectangle);
+    #[test]
+    fn test_end_terminal_converted() {
+        let mut db = StateDatabase::new();
+        db.add_transition(EdgeData::new("Done", "[*]")).unwrap();
+
+        // [*] as target should become [*]_end
+        assert!(db.has_end_terminal());
+        assert!(db.get_node(END_TERMINAL).is_some());
+        assert_eq!(db.get_node(END_TERMINAL).unwrap().shape, NodeShape::Terminal);
+    }
+
+    #[test]
+    fn test_both_terminals_separate() {
+        let mut db = StateDatabase::new();
+        db.add_transition(EdgeData::new("[*]", "Idle")).unwrap();
+        db.add_transition(EdgeData::new("Idle", "[*]")).unwrap();
+
+        // Should have 3 states: start, Idle, end
+        assert_eq!(db.state_count(), 3);
+        assert!(db.has_start_terminal());
+        assert!(db.has_end_terminal());
+        assert!(db.get_node(START_TERMINAL).is_some());
+        assert!(db.get_node(END_TERMINAL).is_some());
     }
 
     #[test]

@@ -17,7 +17,7 @@ mod layout;
 mod parser;
 mod renderer;
 
-pub use database::StateDatabase;
+pub use database::{StateDatabase, START_TERMINAL, END_TERMINAL};
 pub use detector::StateDetector;
 pub use layout::{StateLayoutAlgorithm, StateLayoutResult};
 pub use parser::StateParser;

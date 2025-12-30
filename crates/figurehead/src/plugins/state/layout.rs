@@ -2,7 +2,7 @@
 //!
 //! Positions states and transitions for rendering.
 
-use super::database::StateDatabase;
+use super::database::{StateDatabase, START_TERMINAL};
 use crate::core::{LayoutAlgorithm, NodeShape};
 use anyhow::Result;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -75,45 +75,29 @@ impl StateLayoutAlgorithm {
         let mut visited: HashSet<String> = HashSet::new();
         let mut queue: VecDeque<(String, usize)> = VecDeque::new();
 
-        // Find start states ([*] that only have outgoing edges)
-        let mut start_states: Vec<String> = Vec::new();
+        // Find start terminal or first state
+        let start = if db.has_start_terminal() {
+            START_TERMINAL.to_string()
+        } else if let Some(first) = db.states().first() {
+            first.id.clone()
+        } else {
+            return ranks;
+        };
 
-        for state in db.states() {
-            if state.id == "[*]" {
-                // Check if this [*] is a start (has outgoing but check first occurrence)
-                let has_outgoing = db.transitions().iter().any(|t| t.from == state.id);
-                if has_outgoing {
-                    start_states.push(state.id.clone());
-                    break; // Only need one start
-                }
+        // BFS from start
+        queue.push_back((start, 0));
+
+        while let Some((state_id, rank)) = queue.pop_front() {
+            if visited.contains(&state_id) {
+                continue;
             }
-        }
+            visited.insert(state_id.clone());
+            ranks.insert(state_id.clone(), rank);
 
-        // If no [*] start, use first state
-        if start_states.is_empty() {
-            if let Some(first) = db.states().first() {
-                start_states.push(first.id.clone());
-            }
-        }
-
-        // BFS from start states
-        for start in start_states {
-            if !visited.contains(&start) {
-                queue.push_back((start, 0));
-            }
-
-            while let Some((state_id, rank)) = queue.pop_front() {
-                if visited.contains(&state_id) {
-                    continue;
-                }
-                visited.insert(state_id.clone());
-                ranks.insert(state_id.clone(), rank);
-
-                // Add all states reachable from this one
-                for edge in db.transitions() {
-                    if edge.from == state_id && !visited.contains(&edge.to) {
-                        queue.push_back((edge.to.clone(), rank + 1));
-                    }
+            // Add all states reachable from this one
+            for edge in db.transitions() {
+                if edge.from == state_id && !visited.contains(&edge.to) {
+                    queue.push_back((edge.to.clone(), rank + 1));
                 }
             }
         }
@@ -163,10 +147,42 @@ impl StateLayoutAlgorithm {
 
         let max_rank = *ranks.values().max().unwrap_or(&0);
 
-        // Calculate positions
+        // First pass: calculate dimensions and find max row width
+        let mut rank_info: Vec<(Vec<(usize, usize)>, usize, usize)> = Vec::new(); // (dims, max_height, row_width)
+        let mut max_row_width = 0;
+
+        for rank in 0..=max_rank {
+            let states_in_rank = by_rank.get(&rank).map(|v| v.as_slice()).unwrap_or(&[]);
+
+            if states_in_rank.is_empty() {
+                rank_info.push((vec![], 0, 0));
+                continue;
+            }
+
+            let mut max_height = 0;
+            let mut state_dims: Vec<(usize, usize)> = Vec::new();
+            let mut row_width = 0;
+
+            for (i, state) in states_in_rank.iter().enumerate() {
+                let (w, h) = self.calculate_state_size(&state.label, state.shape);
+                state_dims.push((w, h));
+                max_height = max_height.max(h);
+                row_width += w;
+                if i > 0 {
+                    row_width += self.h_spacing;
+                }
+            }
+
+            max_row_width = max_row_width.max(row_width);
+            rank_info.push((state_dims, max_height, row_width));
+        }
+
+        // The center line for the entire diagram
+        let center_x = max_row_width / 2;
+
+        // Second pass: position states with centers aligned
         let mut positioned_states: Vec<PositionedState> = Vec::new();
         let mut state_positions: HashMap<String, (usize, usize, usize, usize)> = HashMap::new();
-
         let mut current_y = 0;
 
         for rank in 0..=max_rank {
@@ -176,22 +192,14 @@ impl StateLayoutAlgorithm {
                 continue;
             }
 
-            // Calculate widths for this rank
-            let mut max_height = 0;
-            let mut state_dims: Vec<(usize, usize)> = Vec::new();
+            let (ref state_dims, max_height, row_width) = rank_info[rank];
 
-            for state in states_in_rank {
-                let (w, h) = self.calculate_state_size(&state.label, state.shape);
-                state_dims.push((w, h));
-                max_height = max_height.max(h);
-            }
+            // Center this row on center_x
+            let row_start = center_x.saturating_sub(row_width / 2);
+            let mut current_x = row_start;
 
-            // Position states in this rank (centered)
-            let mut current_x = 0;
             for (i, state) in states_in_rank.iter().enumerate() {
                 let (w, h) = state_dims[i];
-
-                // Center vertically within the row
                 let y_offset = (max_height - h) / 2;
 
                 let pos_state = PositionedState {
@@ -343,5 +351,26 @@ mod tests {
         let (w, h) = algo.calculate_state_size("", NodeShape::Terminal);
         assert_eq!(w, algo.terminal_size);
         assert_eq!(h, algo.terminal_size);
+    }
+
+    #[test]
+    fn test_branching_layout() {
+        let mut db = StateDatabase::new();
+        db.add_transition(EdgeData::new("[*]", "Idle")).unwrap();
+        db.add_transition(EdgeData::new("Idle", "Processing")).unwrap();
+        db.add_transition(EdgeData::new("Processing", "Success")).unwrap();
+        db.add_transition(EdgeData::new("Processing", "Failed")).unwrap();
+        db.add_transition(EdgeData::new("Success", "[*]")).unwrap();
+        db.add_transition(EdgeData::new("Failed", "[*]")).unwrap();
+
+        let algo = StateLayoutAlgorithm::new();
+        let result = algo.layout(&db).unwrap();
+
+        // Find the start terminal
+        let start = result.states.iter().find(|s| s.id == START_TERMINAL).unwrap();
+
+        // The start terminal should be horizontally centered
+        // It should NOT be at x=0 for a branching diagram
+        assert!(start.x > 0, "Start terminal x={} should be > 0", start.x);
     }
 }

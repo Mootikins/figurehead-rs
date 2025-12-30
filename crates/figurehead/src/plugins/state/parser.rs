@@ -269,7 +269,7 @@ stateDiagram-v2
 
         parser.parse(input, &mut db).unwrap();
 
-        assert_eq!(db.state_count(), 4); // [*], Idle, Processing, Done
+        assert_eq!(db.state_count(), 5); // [*]_start, Idle, Processing, Done, [*]_end
         assert_eq!(db.transition_count(), 4);
     }
 
