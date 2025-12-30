@@ -9,7 +9,7 @@ use tracing::{debug, info, span, trace, Level};
 use unicode_width::UnicodeWidthStr;
 
 use super::FlowchartDatabase;
-use crate::core::{Database, Direction, LayoutAlgorithm, NodeShape};
+use crate::core::{wrap_label, Database, Direction, LayoutAlgorithm, NodeShape};
 
 /// Position data for a laid out node
 #[derive(Debug, Clone)]
@@ -107,44 +107,7 @@ impl FlowchartLayoutAlgorithm {
 
     /// Wrap a label into multiple lines if it exceeds max_label_width
     fn wrap_label(&self, label: &str) -> Vec<String> {
-        let max_width = self.config.max_label_width;
-        if max_width == 0 || UnicodeWidthStr::width(label) <= max_width {
-            return vec![label.to_string()];
-        }
-
-        let mut lines = Vec::new();
-        let mut current_line = String::new();
-        let mut current_width = 0;
-
-        for word in label.split_whitespace() {
-            let word_width = UnicodeWidthStr::width(word);
-
-            if current_width == 0 {
-                // First word on line
-                current_line = word.to_string();
-                current_width = word_width;
-            } else if current_width + 1 + word_width <= max_width {
-                // Word fits on current line
-                current_line.push(' ');
-                current_line.push_str(word);
-                current_width += 1 + word_width;
-            } else {
-                // Start new line
-                lines.push(current_line);
-                current_line = word.to_string();
-                current_width = word_width;
-            }
-        }
-
-        if !current_line.is_empty() {
-            lines.push(current_line);
-        }
-
-        if lines.is_empty() {
-            lines.push(label.to_string());
-        }
-
-        lines
+        wrap_label(label, self.config.max_label_width)
     }
 
     /// Calculate node dimensions based on shape and label

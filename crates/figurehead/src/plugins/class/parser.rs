@@ -1,137 +1,21 @@
 //! Class diagram parser
 //!
-//! Parses class diagram syntax into the database.
+//! Parses class diagram syntax into the database using chumsky.
 
-use super::database::{
-    Class, ClassDatabase, Classifier, Member, Relationship, RelationshipKind, Visibility,
-};
+use super::chumsky_parser::{ChumskyClassParser, Statement};
+use super::database::{Class, ClassDatabase, Member, Relationship};
 use crate::core::Parser;
 use anyhow::Result;
 
-/// Class diagram parser
-pub struct ClassParser;
+/// Class diagram parser using chumsky
+pub struct ClassParser {
+    chumsky: ChumskyClassParser,
+}
 
 impl ClassParser {
     pub fn new() -> Self {
-        Self
-    }
-
-    /// Parse a relationship line like "Animal <|-- Dog" or "A --> B : label"
-    fn parse_relationship(
-        &self,
-        line: &str,
-    ) -> Option<(String, String, RelationshipKind, Option<String>)> {
-        // Relationship patterns (longest first to avoid partial matches)
-        let patterns = [
-            ("<|--", RelationshipKind::Inheritance),
-            ("..|>", RelationshipKind::Realization),
-            ("*--", RelationshipKind::Composition),
-            ("o--", RelationshipKind::Aggregation),
-            ("..>", RelationshipKind::Dependency),
-            ("-->", RelationshipKind::Association),
-            ("..", RelationshipKind::DashedLink),
-            ("--", RelationshipKind::Link),
-        ];
-
-        for (pattern, kind) in patterns {
-            if let Some(pos) = line.find(pattern) {
-                let from = line[..pos].trim().to_string();
-                let rest = &line[pos + pattern.len()..];
-
-                // Check for label after ":"
-                let (to, label) = if let Some(colon_pos) = rest.find(':') {
-                    let to = rest[..colon_pos].trim().to_string();
-                    let label = rest[colon_pos + 1..].trim().to_string();
-                    (to, if label.is_empty() { None } else { Some(label) })
-                } else {
-                    (rest.trim().to_string(), None)
-                };
-
-                if !from.is_empty() && !to.is_empty() {
-                    return Some((from, to, kind, label));
-                }
-            }
-        }
-        None
-    }
-
-    /// Parse a class body line into a Member
-    fn parse_member(&self, line: &str) -> Option<Member> {
-        let line = line.trim();
-        if line.is_empty() {
-            return None;
-        }
-
-        let mut chars = line.chars().peekable();
-
-        // Check for visibility prefix
-        let visibility = chars.peek().and_then(|&c| Visibility::from_char(c));
-        if visibility.is_some() {
-            chars.next();
-        }
-
-        // Collect the rest
-        let rest: String = chars.collect();
-        let rest = rest.trim();
-
-        if rest.is_empty() {
-            return None;
-        }
-
-        // Check for classifier suffix (* or $)
-        let (rest, classifier) = if rest.ends_with('*') {
-            (
-                rest.trim_end_matches('*').trim(),
-                Some(Classifier::Abstract),
-            )
-        } else if rest.ends_with('$') {
-            (rest.trim_end_matches('$').trim(), Some(Classifier::Static))
-        } else {
-            (rest, None)
-        };
-
-        // Check if it's a method (has parentheses)
-        let is_method = rest.contains('(');
-
-        // Parse name and type
-        if is_method {
-            // Method: name() or name(): type or name(args): type
-            let paren_pos = rest.find('(')?;
-            let name = rest[..paren_pos].trim().to_string();
-
-            // Check for return type after )
-            let member_type = rest.find(')').and_then(|close_paren| {
-                let after = rest[close_paren + 1..].trim();
-                after
-                    .find(':')
-                    .map(|pos| after[pos + 1..].trim().to_string())
-            });
-
-            Some(Member {
-                visibility,
-                name,
-                member_type,
-                classifier,
-                is_method: true,
-            })
-        } else {
-            // Attribute: name or name: type
-            let (name, member_type) = if let Some(colon_pos) = rest.find(':') {
-                (
-                    rest[..colon_pos].trim().to_string(),
-                    Some(rest[colon_pos + 1..].trim().to_string()),
-                )
-            } else {
-                (rest.to_string(), None)
-            };
-
-            Some(Member {
-                visibility,
-                name,
-                member_type,
-                classifier,
-                is_method: false,
-            })
+        Self {
+            chumsky: ChumskyClassParser::new(),
         }
     }
 }
@@ -144,78 +28,41 @@ impl Default for ClassParser {
 
 impl Parser<ClassDatabase> for ClassParser {
     fn parse(&self, input: &str, database: &mut ClassDatabase) -> Result<()> {
-        let mut current_class: Option<Class> = None;
-        let mut in_class_body = false;
+        let statements = self.chumsky.parse_diagram(input)?;
 
-        for line in input.lines() {
-            let line = line.trim();
-
-            // Skip empty lines and diagram declaration
-            if line.is_empty() || line.to_lowercase().starts_with("classdiagram") {
-                continue;
-            }
-
-            // Handle class definition with body: class Name {
-            if line.starts_with("class ") {
-                // Save previous class if any
-                if let Some(class) = current_class.take() {
-                    database.add_class(class)?;
-                }
-
-                let rest = line.strip_prefix("class ").unwrap().trim();
-
-                if rest.ends_with('{') {
-                    // Start of class body
-                    let name = rest.trim_end_matches('{').trim();
-                    current_class = Some(Class::new(name));
-                    in_class_body = true;
-                } else {
-                    // Single-line class definition (no body)
-                    database.add_class(Class::new(rest))?;
-                }
-                continue;
-            }
-
-            // Handle end of class body
-            if line == "}" {
-                if let Some(class) = current_class.take() {
-                    database.add_class(class)?;
-                }
-                in_class_body = false;
-                continue;
-            }
-
-            // Parse member if inside class body
-            if in_class_body {
-                if let Some(member) = self.parse_member(line) {
-                    if let Some(ref mut class) = current_class {
+        for statement in statements {
+            match statement {
+                Statement::Class(parsed_class) => {
+                    let mut class = Class::new(&parsed_class.name);
+                    for member in parsed_class.members {
+                        let db_member = Member {
+                            visibility: member.visibility,
+                            name: member.name,
+                            member_type: member.member_type,
+                            classifier: member.classifier,
+                            is_method: member.is_method,
+                        };
                         if member.is_method {
-                            class.add_method(member);
+                            class.add_method(db_member);
                         } else {
-                            class.add_attribute(member);
+                            class.add_attribute(db_member);
                         }
                     }
+                    database.add_class(class)?;
                 }
-                continue;
-            }
+                Statement::Relationship(parsed_rel) => {
+                    // Ensure classes exist
+                    database.get_or_create_class(&parsed_rel.from);
+                    database.get_or_create_class(&parsed_rel.to);
 
-            // Try to parse as relationship (outside class body)
-            if let Some((from, to, kind, label)) = self.parse_relationship(line) {
-                // Ensure classes exist
-                database.get_or_create_class(&from);
-                database.get_or_create_class(&to);
-
-                let mut rel = Relationship::new(from, to, kind);
-                if let Some(lbl) = label {
-                    rel = rel.with_label(lbl);
+                    let mut rel =
+                        Relationship::new(parsed_rel.from, parsed_rel.to, parsed_rel.kind);
+                    if let Some(label) = parsed_rel.label {
+                        rel = rel.with_label(label);
+                    }
+                    database.add_relationship(rel)?;
                 }
-                database.add_relationship(rel)?;
             }
-        }
-
-        // Handle class without closing brace
-        if let Some(class) = current_class {
-            database.add_class(class)?;
         }
 
         Ok(())
@@ -226,7 +73,7 @@ impl Parser<ClassDatabase> for ClassParser {
     }
 
     fn version(&self) -> &'static str {
-        "0.1.0"
+        "0.2.0" // Bumped for chumsky migration
     }
 
     fn can_parse(&self, input: &str) -> bool {
@@ -237,6 +84,7 @@ impl Parser<ClassDatabase> for ClassParser {
 
 #[cfg(test)]
 mod tests {
+    use super::super::database::{Classifier, RelationshipKind, Visibility};
     use super::*;
 
     #[test]
@@ -352,23 +200,6 @@ mod tests {
         assert_eq!(db.class_count(), 2);
         assert_eq!(db.classes()[0].name, "Animal");
         assert_eq!(db.classes()[1].name, "Dog");
-    }
-
-    #[test]
-    fn test_parse_member_line() {
-        let parser = ClassParser::new();
-
-        let member = parser.parse_member("+name: string").unwrap();
-        assert_eq!(member.name, "name");
-        assert_eq!(member.visibility, Some(Visibility::Public));
-        assert_eq!(member.member_type, Some("string".to_string()));
-        assert!(!member.is_method);
-
-        let method = parser.parse_member("-calculate()*").unwrap();
-        assert_eq!(method.name, "calculate");
-        assert_eq!(method.visibility, Some(Visibility::Private));
-        assert_eq!(method.classifier, Some(Classifier::Abstract));
-        assert!(method.is_method);
     }
 
     // =========================================================================

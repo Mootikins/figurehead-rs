@@ -7,78 +7,9 @@ use tracing::{debug, info, span, trace, Level};
 
 use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode, PositionedSubgraph};
 use crate::core::{
-    AsciiCanvas, CharacterSet, Database, DiamondStyle, EdgeType, LayoutAlgorithm, NodeShape,
-    Renderer,
+    wrap_label, AsciiCanvas, BoxChars, CharacterSet, Database, DiamondStyle, EdgeType,
+    LayoutAlgorithm, NodeShape, Renderer,
 };
-
-/// Box drawing characters
-struct BoxChars {
-    top_left: char,
-    top_right: char,
-    bottom_left: char,
-    bottom_right: char,
-    horizontal: char,
-    vertical: char,
-}
-
-impl BoxChars {
-    fn rectangle(style: CharacterSet) -> Self {
-        match style {
-            CharacterSet::Ascii | CharacterSet::Compact => Self {
-                top_left: '+',
-                top_right: '+',
-                bottom_left: '+',
-                bottom_right: '+',
-                horizontal: '-',
-                vertical: '|',
-            },
-            _ => Self {
-                top_left: '┌',
-                top_right: '┐',
-                bottom_left: '└',
-                bottom_right: '┘',
-                horizontal: '─',
-                vertical: '│',
-            },
-        }
-    }
-
-    fn rounded(style: CharacterSet) -> Self {
-        match style {
-            CharacterSet::Ascii | CharacterSet::Compact => Self::rectangle(style),
-            _ => Self {
-                top_left: '╭',
-                top_right: '╮',
-                bottom_left: '╰',
-                bottom_right: '╯',
-                horizontal: '─',
-                vertical: '│',
-            },
-        }
-    }
-
-    /// Double-line box for subgraphs (visually distinct from nodes)
-    fn subgraph(style: CharacterSet) -> Self {
-        match style {
-            CharacterSet::Ascii | CharacterSet::Compact => Self {
-                top_left: '#',
-                top_right: '#',
-                bottom_left: '#',
-                bottom_right: '#',
-                horizontal: '=',
-                vertical: '#',
-            },
-            _ => Self {
-                top_left: '╔',
-                top_right: '╗',
-                bottom_left: '╚',
-                bottom_right: '╝',
-                horizontal: '═',
-                vertical: '║',
-            },
-        }
-    }
-}
 
 /// Flowchart ASCII renderer
 pub struct FlowchartRenderer {
@@ -132,46 +63,6 @@ impl FlowchartRenderer {
         self.diamond_style
     }
 
-    /// Wrap a label into multiple lines if it exceeds max width
-    fn wrap_label(label: &str, max_width: usize) -> Vec<String> {
-        use unicode_width::UnicodeWidthStr;
-
-        if max_width == 0 || UnicodeWidthStr::width(label) <= max_width {
-            return vec![label.to_string()];
-        }
-
-        let mut lines = Vec::new();
-        let mut current_line = String::new();
-        let mut current_width = 0;
-
-        for word in label.split_whitespace() {
-            let word_width = UnicodeWidthStr::width(word);
-
-            if current_width == 0 {
-                current_line = word.to_string();
-                current_width = word_width;
-            } else if current_width + 1 + word_width <= max_width {
-                current_line.push(' ');
-                current_line.push_str(word);
-                current_width += 1 + word_width;
-            } else {
-                lines.push(current_line);
-                current_line = word.to_string();
-                current_width = word_width;
-            }
-        }
-
-        if !current_line.is_empty() {
-            lines.push(current_line);
-        }
-
-        if lines.is_empty() {
-            lines.push(label.to_string());
-        }
-
-        lines
-    }
-
     fn draw_node(
         &self,
         canvas: &mut AsciiCanvas,
@@ -201,7 +92,7 @@ impl FlowchartRenderer {
     fn draw_subgraph(&self, canvas: &mut AsciiCanvas, subgraph: &PositionedSubgraph) {
         use unicode_width::UnicodeWidthStr;
 
-        let chars = BoxChars::subgraph(self.style);
+        let chars = BoxChars::double(self.style);
         let x = subgraph.x;
         let y = subgraph.y;
         let w = subgraph.width;
@@ -275,7 +166,7 @@ impl FlowchartRenderer {
     fn redraw_subgraph_title(&self, canvas: &mut AsciiCanvas, subgraph: &PositionedSubgraph) {
         use unicode_width::UnicodeWidthStr;
 
-        let chars = BoxChars::subgraph(self.style);
+        let chars = BoxChars::double(self.style);
         let x = subgraph.x;
         let y = subgraph.y;
         let w = subgraph.width;
@@ -352,7 +243,7 @@ impl FlowchartRenderer {
         }
 
         // Wrap and draw label(s) centered vertically and horizontally
-        let lines = Self::wrap_label(label, MAX_LABEL_WIDTH);
+        let lines = wrap_label(label, MAX_LABEL_WIDTH);
         let total_lines = lines.len();
         let start_y = y + (h.saturating_sub(total_lines)) / 2;
 

@@ -9,7 +9,7 @@ use super::database::{ClassDatabase, RelationshipKind};
 use super::layout::{
     ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass, PositionedRelationship,
 };
-use crate::core::AsciiCanvas;
+use crate::core::{AsciiCanvas, BoxChars, CharacterSet};
 
 /// Class diagram renderer
 pub struct ClassRenderer;
@@ -39,46 +39,39 @@ impl ClassRenderer {
         let y = class.y;
         let w = class.width;
 
-        // Box drawing characters
-        const TOP_LEFT: char = '┌';
-        const TOP_RIGHT: char = '┐';
-        const BOTTOM_LEFT: char = '└';
-        const BOTTOM_RIGHT: char = '┘';
-        const HORIZONTAL: char = '─';
-        const VERTICAL: char = '│';
-        const T_LEFT: char = '├';
-        const T_RIGHT: char = '┤';
+        // Use shared box drawing characters (Unicode mode)
+        let chars = BoxChars::rectangle(CharacterSet::Unicode);
 
         // Current y position for drawing
         let mut cy = y;
 
         // Top border
-        canvas.set_char(x, cy, TOP_LEFT);
-        canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
-        canvas.set_char(x + w - 1, cy, TOP_RIGHT);
+        canvas.set_char(x, cy, chars.top_left);
+        canvas.draw_horizontal_line(x + 1, cy, w - 2, chars.horizontal);
+        canvas.set_char(x + w - 1, cy, chars.top_right);
         cy += 1;
 
         // Class name (centered) - clear content area first
-        canvas.set_char(x, cy, VERTICAL);
+        canvas.set_char(x, cy, chars.vertical);
         canvas.draw_horizontal_line(x + 1, cy, w - 2, ' '); // Clear content area
         self.draw_text_in_box(canvas, x + 1, cy, w - 2, &class.name);
-        canvas.set_char(x + w - 1, cy, VERTICAL);
+        canvas.set_char(x + w - 1, cy, chars.vertical);
         cy += 1;
 
         // Attributes section
         if !class.attributes.is_empty() {
             // Separator
-            canvas.set_char(x, cy, T_LEFT);
-            canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
-            canvas.set_char(x + w - 1, cy, T_RIGHT);
+            canvas.set_char(x, cy, chars.t_right);
+            canvas.draw_horizontal_line(x + 1, cy, w - 2, chars.horizontal);
+            canvas.set_char(x + w - 1, cy, chars.t_left);
             cy += 1;
 
             // Attributes
             for attr in &class.attributes {
-                canvas.set_char(x, cy, VERTICAL);
+                canvas.set_char(x, cy, chars.vertical);
                 canvas.draw_horizontal_line(x + 1, cy, w - 2, ' '); // Clear content area
                 canvas.draw_text(x + 2, cy, attr);
-                canvas.set_char(x + w - 1, cy, VERTICAL);
+                canvas.set_char(x + w - 1, cy, chars.vertical);
                 cy += 1;
             }
         }
@@ -86,25 +79,25 @@ impl ClassRenderer {
         // Methods section
         if !class.methods.is_empty() {
             // Separator
-            canvas.set_char(x, cy, T_LEFT);
-            canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
-            canvas.set_char(x + w - 1, cy, T_RIGHT);
+            canvas.set_char(x, cy, chars.t_right);
+            canvas.draw_horizontal_line(x + 1, cy, w - 2, chars.horizontal);
+            canvas.set_char(x + w - 1, cy, chars.t_left);
             cy += 1;
 
             // Methods
             for method in &class.methods {
-                canvas.set_char(x, cy, VERTICAL);
+                canvas.set_char(x, cy, chars.vertical);
                 canvas.draw_horizontal_line(x + 1, cy, w - 2, ' '); // Clear content area
                 canvas.draw_text(x + 2, cy, method);
-                canvas.set_char(x + w - 1, cy, VERTICAL);
+                canvas.set_char(x + w - 1, cy, chars.vertical);
                 cy += 1;
             }
         }
 
         // Bottom border
-        canvas.set_char(x, cy, BOTTOM_LEFT);
-        canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
-        canvas.set_char(x + w - 1, cy, BOTTOM_RIGHT);
+        canvas.set_char(x, cy, chars.bottom_left);
+        canvas.draw_horizontal_line(x + 1, cy, w - 2, chars.horizontal);
+        canvas.set_char(x + w - 1, cy, chars.bottom_right);
     }
 
     /// Get line character for a relationship type
