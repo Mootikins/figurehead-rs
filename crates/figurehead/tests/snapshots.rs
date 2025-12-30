@@ -304,3 +304,32 @@ fn test_class_multiple() {
     }"#,
     );
 }
+
+#[test]
+fn test_class_inheritance() {
+    assert_fixture(
+        "class_inheritance",
+        r#"classDiagram
+    Animal <|-- Dog
+    Animal <|-- Cat"#,
+    );
+}
+
+#[test]
+fn test_class_composition() {
+    assert_fixture(
+        "class_composition",
+        r#"classDiagram
+    Person *-- Heart
+    Person *-- Brain"#,
+    );
+}
+
+#[test]
+fn test_class_association_with_label() {
+    assert_fixture(
+        "class_association_label",
+        r#"classDiagram
+    Customer --> Order : places"#,
+    );
+}

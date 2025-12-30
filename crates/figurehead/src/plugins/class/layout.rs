@@ -5,7 +5,7 @@
 use anyhow::Result;
 use unicode_width::UnicodeWidthStr;
 
-use super::database::{Class, ClassDatabase, Visibility, Classifier};
+use super::database::{Class, ClassDatabase, Visibility, Classifier, RelationshipKind};
 
 /// Positioned class box for rendering
 #[derive(Debug, Clone)]
@@ -20,10 +20,24 @@ pub struct PositionedClass {
     pub methods: Vec<String>,
 }
 
+/// Positioned relationship for rendering
+#[derive(Debug, Clone)]
+pub struct PositionedRelationship {
+    pub from_class: String,
+    pub to_class: String,
+    pub kind: RelationshipKind,
+    pub label: Option<String>,
+    pub from_x: usize,
+    pub from_y: usize,
+    pub to_x: usize,
+    pub to_y: usize,
+}
+
 /// Layout result containing all positioned elements
 #[derive(Debug)]
 pub struct ClassLayoutResult {
     pub classes: Vec<PositionedClass>,
+    pub relationships: Vec<PositionedRelationship>,
     pub width: usize,
     pub height: usize,
 }
@@ -134,6 +148,7 @@ impl ClassLayoutAlgorithm {
         if classes.is_empty() {
             return Ok(ClassLayoutResult {
                 classes: Vec::new(),
+                relationships: Vec::new(),
                 width: 0,
                 height: 0,
             });
@@ -200,8 +215,36 @@ impl ClassLayoutAlgorithm {
         let total_width = max_width;
         let total_height = y + row_height;
 
+        // Position relationships between classes
+        let mut positioned_relationships = Vec::new();
+        for rel in database.relationships() {
+            // Find from and to class positions
+            let from_class = positioned.iter().find(|c| c.name == rel.from);
+            let to_class = positioned.iter().find(|c| c.name == rel.to);
+
+            if let (Some(from), Some(to)) = (from_class, to_class) {
+                // Calculate connection points (center-bottom of from, center-top of to)
+                let from_x = from.x + from.width / 2;
+                let from_y = from.y + from.height;
+                let to_x = to.x + to.width / 2;
+                let to_y = to.y;
+
+                positioned_relationships.push(PositionedRelationship {
+                    from_class: rel.from.clone(),
+                    to_class: rel.to.clone(),
+                    kind: rel.kind,
+                    label: rel.label.clone(),
+                    from_x,
+                    from_y,
+                    to_x,
+                    to_y,
+                });
+            }
+        }
+
         Ok(ClassLayoutResult {
             classes: positioned,
+            relationships: positioned_relationships,
             width: total_width,
             height: total_height,
         })
@@ -320,5 +363,69 @@ mod tests {
             true,
         );
         assert_eq!(method, "-calc()*");
+    }
+
+    // =========================================================================
+    // Relationship layout tests
+    // =========================================================================
+
+    #[test]
+    fn test_relationship_positioning() {
+        use super::super::database::{Relationship, RelationshipKind};
+
+        let mut db = ClassDatabase::new();
+        db.add_class(Class::new("Animal")).unwrap();
+        db.add_class(Class::new("Dog")).unwrap();
+        db.add_relationship(Relationship::new("Animal", "Dog", RelationshipKind::Inheritance)).unwrap();
+
+        let layout = ClassLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.relationships.len(), 1);
+        let rel = &result.relationships[0];
+        assert_eq!(rel.from_class, "Animal");
+        assert_eq!(rel.to_class, "Dog");
+        assert_eq!(rel.kind, RelationshipKind::Inheritance);
+    }
+
+    #[test]
+    fn test_relationship_coordinates() {
+        use super::super::database::{Relationship, RelationshipKind};
+
+        let mut db = ClassDatabase::new();
+        db.add_class(Class::new("A")).unwrap();
+        db.add_class(Class::new("B")).unwrap();
+        db.add_relationship(Relationship::new("A", "B", RelationshipKind::Association)).unwrap();
+
+        let layout = ClassLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        let rel = &result.relationships[0];
+        // From should be at bottom-center of A, to should be at top-center of B
+        let class_a = result.classes.iter().find(|c| c.name == "A").unwrap();
+        let class_b = result.classes.iter().find(|c| c.name == "B").unwrap();
+
+        assert_eq!(rel.from_x, class_a.x + class_a.width / 2);
+        assert_eq!(rel.from_y, class_a.y + class_a.height);
+        assert_eq!(rel.to_x, class_b.x + class_b.width / 2);
+        assert_eq!(rel.to_y, class_b.y);
+    }
+
+    #[test]
+    fn test_relationship_with_label() {
+        use super::super::database::Relationship;
+
+        let mut db = ClassDatabase::new();
+        db.add_class(Class::new("Customer")).unwrap();
+        db.add_class(Class::new("Order")).unwrap();
+        db.add_relationship(
+            Relationship::new("Customer", "Order", RelationshipKind::Association)
+                .with_label("places")
+        ).unwrap();
+
+        let layout = ClassLayoutAlgorithm::new();
+        let result = layout.layout(&db).unwrap();
+
+        assert_eq!(result.relationships[0].label, Some("places".to_string()));
     }
 }

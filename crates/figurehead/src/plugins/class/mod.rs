@@ -10,6 +10,6 @@ mod renderer;
 
 pub use database::{Class, ClassDatabase, Classifier, Member, Relationship, RelationshipKind, Visibility};
 pub use detector::ClassDetector;
-pub use layout::{ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass};
+pub use layout::{ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass, PositionedRelationship};
 pub use parser::ClassParser;
 pub use renderer::ClassRenderer;

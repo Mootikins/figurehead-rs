@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use crate::core::Parser;
-use super::database::{Class, ClassDatabase, Classifier, Member, Visibility};
+use super::database::{Class, ClassDatabase, Classifier, Member, Relationship, RelationshipKind, Visibility};
 
 /// Class diagram parser
 pub struct ClassParser;
@@ -12,6 +12,42 @@ pub struct ClassParser;
 impl ClassParser {
     pub fn new() -> Self {
         Self
+    }
+
+    /// Parse a relationship line like "Animal <|-- Dog" or "A --> B : label"
+    fn parse_relationship(&self, line: &str) -> Option<(String, String, RelationshipKind, Option<String>)> {
+        // Relationship patterns (longest first to avoid partial matches)
+        let patterns = [
+            ("<|--", RelationshipKind::Inheritance),
+            ("..|>", RelationshipKind::Realization),
+            ("*--", RelationshipKind::Composition),
+            ("o--", RelationshipKind::Aggregation),
+            ("..>", RelationshipKind::Dependency),
+            ("-->", RelationshipKind::Association),
+            ("..", RelationshipKind::DashedLink),
+            ("--", RelationshipKind::Link),
+        ];
+
+        for (pattern, kind) in patterns {
+            if let Some(pos) = line.find(pattern) {
+                let from = line[..pos].trim().to_string();
+                let rest = &line[pos + pattern.len()..];
+
+                // Check for label after ":"
+                let (to, label) = if let Some(colon_pos) = rest.find(':') {
+                    let to = rest[..colon_pos].trim().to_string();
+                    let label = rest[colon_pos + 1..].trim().to_string();
+                    (to, if label.is_empty() { None } else { Some(label) })
+                } else {
+                    (rest.trim().to_string(), None)
+                };
+
+                if !from.is_empty() && !to.is_empty() {
+                    return Some((from, to, kind, label));
+                }
+            }
+        }
+        None
     }
 
     /// Parse a class body line into a Member
@@ -158,6 +194,20 @@ impl Parser<ClassDatabase> for ClassParser {
                         }
                     }
                 }
+                continue;
+            }
+
+            // Try to parse as relationship (outside class body)
+            if let Some((from, to, kind, label)) = self.parse_relationship(line) {
+                // Ensure classes exist
+                database.get_or_create_class(&from);
+                database.get_or_create_class(&to);
+
+                let mut rel = Relationship::new(from, to, kind);
+                if let Some(lbl) = label {
+                    rel = rel.with_label(lbl);
+                }
+                database.add_relationship(rel)?;
             }
         }
 
@@ -315,5 +365,111 @@ mod tests {
         assert_eq!(method.visibility, Some(Visibility::Private));
         assert_eq!(method.classifier, Some(Classifier::Abstract));
         assert!(method.is_method);
+    }
+
+    // =========================================================================
+    // Relationship parsing tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_inheritance() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Animal <|-- Dog", &mut db).unwrap();
+
+        assert_eq!(db.class_count(), 2);
+        assert_eq!(db.relationship_count(), 1);
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.from, "Animal");
+        assert_eq!(rel.to, "Dog");
+        assert_eq!(rel.kind, RelationshipKind::Inheritance);
+    }
+
+    #[test]
+    fn test_parse_composition() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Person *-- Heart", &mut db).unwrap();
+
+        assert_eq!(db.relationship_count(), 1);
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.kind, RelationshipKind::Composition);
+    }
+
+    #[test]
+    fn test_parse_aggregation() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Library o-- Book", &mut db).unwrap();
+
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.kind, RelationshipKind::Aggregation);
+    }
+
+    #[test]
+    fn test_parse_association() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Student --> Course", &mut db).unwrap();
+
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.kind, RelationshipKind::Association);
+    }
+
+    #[test]
+    fn test_parse_dependency() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Client ..> Service", &mut db).unwrap();
+
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.kind, RelationshipKind::Dependency);
+    }
+
+    #[test]
+    fn test_parse_realization() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Shape ..|> Drawable", &mut db).unwrap();
+
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.kind, RelationshipKind::Realization);
+    }
+
+    #[test]
+    fn test_parse_relationship_with_label() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        parser.parse("classDiagram\n    Customer --> Order : places", &mut db).unwrap();
+
+        let rel = &db.relationships()[0];
+        assert_eq!(rel.label, Some("places".to_string()));
+    }
+
+    #[test]
+    fn test_parse_mixed_classes_and_relationships() {
+        let parser = ClassParser::new();
+        let mut db = ClassDatabase::new();
+
+        let input = r#"classDiagram
+    class Animal {
+        +name: string
+    }
+    class Dog {
+        +breed: string
+    }
+    Animal <|-- Dog"#;
+
+        parser.parse(input, &mut db).unwrap();
+
+        assert_eq!(db.class_count(), 2);
+        assert_eq!(db.relationship_count(), 1);
     }
 }

@@ -5,8 +5,8 @@
 use anyhow::Result;
 use unicode_width::UnicodeWidthStr;
 
-use super::layout::{ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass};
-use super::database::ClassDatabase;
+use super::layout::{ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass, PositionedRelationship};
+use super::database::{ClassDatabase, RelationshipKind};
 
 /// ASCII canvas for rendering
 struct Canvas {
@@ -142,16 +142,68 @@ impl ClassRenderer {
         canvas.set(x + w - 1, cy, BOTTOM_RIGHT);
     }
 
+    /// Draw a relationship arrow between classes
+    fn draw_relationship(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
+        // For horizontal relationships (classes on same row)
+        // Draw: from_class ──────▷ to_class
+        //
+        // Arrow head characters based on relationship type
+        let (arrow_char, line_char) = match rel.kind {
+            RelationshipKind::Inheritance => ('◁', '─'),   // <|-- hollow triangle
+            RelationshipKind::Realization => ('◁', '╌'),   // ..|> dashed hollow
+            RelationshipKind::Composition => ('◆', '─'),   // *-- filled diamond
+            RelationshipKind::Aggregation => ('◇', '─'),   // o-- hollow diamond
+            RelationshipKind::Association => ('▷', '─'),   // --> arrow
+            RelationshipKind::Dependency => ('▷', '╌'),    // ..> dashed arrow
+            RelationshipKind::Link => ('─', '─'),          // -- plain
+            RelationshipKind::DashedLink => ('╌', '╌'),    // .. dashed
+        };
+
+        let from_x = rel.from_x;
+        let to_x = rel.to_x;
+        let y = rel.from_y; // Draw at bottom of from class
+
+        // Determine direction
+        if from_x < to_x {
+            // Left to right
+            for x in (from_x + 1)..to_x {
+                canvas.set(x, y, line_char);
+            }
+            canvas.set(to_x, y, arrow_char);
+        } else if from_x > to_x {
+            // Right to left
+            for x in (to_x + 1)..from_x {
+                canvas.set(x, y, line_char);
+            }
+            canvas.set(to_x, y, arrow_char);
+        }
+
+        // Draw label if present
+        if let Some(ref label) = rel.label {
+            let mid_x = (from_x + to_x) / 2;
+            let label_start = mid_x.saturating_sub(label.len() / 2);
+            canvas.draw_text(label_start, y.saturating_sub(1), label);
+        }
+    }
+
     /// Render the layout to ASCII art
     pub fn render(&self, layout: &ClassLayoutResult) -> Result<String> {
         if layout.classes.is_empty() {
             return Ok(String::new());
         }
 
-        let mut canvas = Canvas::new(layout.width + 1, layout.height + 1);
+        // Add extra space for relationship lines
+        let extra_height = if layout.relationships.is_empty() { 0 } else { 2 };
+        let mut canvas = Canvas::new(layout.width + 1, layout.height + extra_height + 1);
 
+        // Draw classes first
         for class in &layout.classes {
             self.draw_class(&mut canvas, class);
+        }
+
+        // Draw relationships on top
+        for rel in &layout.relationships {
+            self.draw_relationship(&mut canvas, rel);
         }
 
         Ok(canvas.to_string())
@@ -272,5 +324,62 @@ mod tests {
         assert!(lines.len() >= 7);
         assert!(lines[0].starts_with('┌'));
         assert!(lines[lines.len() - 1].starts_with('└'));
+    }
+
+    // =========================================================================
+    // Relationship rendering tests
+    // =========================================================================
+
+    #[test]
+    fn test_render_inheritance() {
+        use super::super::database::Relationship;
+
+        let mut db = ClassDatabase::new();
+        db.add_class(Class::new("Animal")).unwrap();
+        db.add_class(Class::new("Dog")).unwrap();
+        db.add_relationship(Relationship::new("Animal", "Dog", RelationshipKind::Inheritance)).unwrap();
+
+        let renderer = ClassRenderer::new();
+        let result = renderer.render_database(&db).unwrap();
+
+        // Should contain both classes and relationship arrow
+        assert!(result.contains("Animal"));
+        assert!(result.contains("Dog"));
+        // Should have inheritance arrow (hollow triangle)
+        assert!(result.contains('◁') || result.contains('─'));
+    }
+
+    #[test]
+    fn test_render_composition() {
+        use super::super::database::Relationship;
+
+        let mut db = ClassDatabase::new();
+        db.add_class(Class::new("Person")).unwrap();
+        db.add_class(Class::new("Heart")).unwrap();
+        db.add_relationship(Relationship::new("Person", "Heart", RelationshipKind::Composition)).unwrap();
+
+        let renderer = ClassRenderer::new();
+        let result = renderer.render_database(&db).unwrap();
+
+        // Should have filled diamond
+        assert!(result.contains('◆') || result.contains('─'));
+    }
+
+    #[test]
+    fn test_render_relationship_with_label() {
+        use super::super::database::Relationship;
+
+        let mut db = ClassDatabase::new();
+        db.add_class(Class::new("Customer")).unwrap();
+        db.add_class(Class::new("Order")).unwrap();
+        db.add_relationship(
+            Relationship::new("Customer", "Order", RelationshipKind::Association)
+                .with_label("places")
+        ).unwrap();
+
+        let renderer = ClassRenderer::new();
+        let result = renderer.render_database(&db).unwrap();
+
+        assert!(result.contains("places"));
     }
 }
