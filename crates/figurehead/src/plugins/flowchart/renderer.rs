@@ -56,6 +56,28 @@ impl BoxChars {
             },
         }
     }
+
+    /// Double-line box for subgraphs (visually distinct from nodes)
+    fn subgraph(style: CharacterSet) -> Self {
+        match style {
+            CharacterSet::Ascii | CharacterSet::Compact => Self {
+                top_left: '#',
+                top_right: '#',
+                bottom_left: '#',
+                bottom_right: '#',
+                horizontal: '=',
+                vertical: '#',
+            },
+            _ => Self {
+                top_left: '╔',
+                top_right: '╗',
+                bottom_left: '╚',
+                bottom_right: '╝',
+                horizontal: '═',
+                vertical: '║',
+            },
+        }
+    }
 }
 
 /// Flowchart ASCII renderer
@@ -179,7 +201,7 @@ impl FlowchartRenderer {
     fn draw_subgraph(&self, canvas: &mut AsciiCanvas, subgraph: &PositionedSubgraph) {
         use unicode_width::UnicodeWidthStr;
 
-        let chars = BoxChars::rectangle(self.style);
+        let chars = BoxChars::subgraph(self.style);
         let x = subgraph.x;
         let y = subgraph.y;
         let w = subgraph.width;
@@ -204,9 +226,9 @@ impl FlowchartRenderer {
 
             let dash_char =
                 if self.style == CharacterSet::Ascii || self.style == CharacterSet::Compact {
-                    '-'
+                    '='
                 } else {
-                    '─'
+                    '═'
                 };
 
             format!(
@@ -246,6 +268,60 @@ impl FlowchartRenderer {
             canvas.set_char(x + i, y + h - 1, chars.horizontal);
         }
         canvas.set_char(x + w - 1, y + h - 1, chars.bottom_right);
+    }
+
+    /// Redraw only the title portion of a subgraph's top border
+    /// Called after edges to fix overlap issues
+    fn redraw_subgraph_title(&self, canvas: &mut AsciiCanvas, subgraph: &PositionedSubgraph) {
+        use unicode_width::UnicodeWidthStr;
+
+        let chars = BoxChars::subgraph(self.style);
+        let x = subgraph.x;
+        let y = subgraph.y;
+        let w = subgraph.width;
+
+        if w < 2 {
+            return;
+        }
+
+        let title = &subgraph.title;
+        let title_width = UnicodeWidthStr::width(title.as_str());
+
+        let total_dashes = w.saturating_sub(2);
+        let title_with_padding = if title_width + 4 <= total_dashes {
+            let remaining = total_dashes.saturating_sub(title_width + 2);
+            let left_dashes = remaining / 2;
+            let right_dashes = remaining - left_dashes;
+
+            let dash_char =
+                if self.style == CharacterSet::Ascii || self.style == CharacterSet::Compact {
+                    '='
+                } else {
+                    '═'
+                };
+
+            format!(
+                "{} {} {}",
+                std::iter::repeat_n(dash_char, left_dashes).collect::<String>(),
+                title,
+                std::iter::repeat_n(dash_char, right_dashes).collect::<String>()
+            )
+        } else {
+            let truncated: String = title.chars().take(total_dashes.saturating_sub(2)).collect();
+            format!(" {} ", truncated)
+        };
+
+        // Redraw top border with title
+        canvas.set_char(x, y, chars.top_left);
+        for (i, c) in title_with_padding.chars().enumerate() {
+            if i + 1 < w - 1 {
+                canvas.set_char(x + 1 + i, y, c);
+            }
+        }
+        for i in (1 + title_with_padding.chars().count())..w - 1 {
+            canvas.set_char(x + i, y, chars.horizontal);
+        }
+        canvas.set_char(x + w - 1, y, chars.top_right);
     }
 
     fn draw_rectangle(
@@ -1770,6 +1846,11 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
         }
         debug!(nodes_drawn, "Drew nodes");
         drop(_node_enter);
+
+        // Redraw subgraph titles last to fix overlap with nodes/edges
+        for subgraph in &layout.subgraphs {
+            self.redraw_subgraph_title(&mut canvas, subgraph);
+        }
 
         let output = canvas.to_string();
         info!(

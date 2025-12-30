@@ -608,9 +608,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 continue;
             }
 
-            // Add padding for border: 1 cell each side, 1 cell top for title
-            let border_padding = 2;
-            let title_height = 1;
+            // Add padding for border: more breathing room around nodes
+            let border_padding = 2; // padding around nodes inside subgraph
+            let title_height = 1; // row for title
 
             positioned_subgraphs.push(PositionedSubgraph {
                 id: subgraph.id.clone(),
