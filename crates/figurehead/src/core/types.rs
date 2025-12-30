@@ -176,6 +176,8 @@ pub enum NodeShape {
     Parallelogram,
     /// Trapezoid: `A[/label\]`
     Trapezoid,
+    /// Terminal state: `[*]` in state diagrams (start/end)
+    Terminal,
 }
 
 impl fmt::Display for NodeShape {
@@ -191,6 +193,7 @@ impl fmt::Display for NodeShape {
             NodeShape::Asymmetric => write!(f, "asymmetric"),
             NodeShape::Parallelogram => write!(f, "parallelogram"),
             NodeShape::Trapezoid => write!(f, "trapezoid"),
+            NodeShape::Terminal => write!(f, "terminal"),
         }
     }
 }
@@ -501,6 +504,7 @@ mod tests {
         assert_eq!(NodeShape::Asymmetric.to_string(), "asymmetric");
         assert_eq!(NodeShape::Parallelogram.to_string(), "parallelogram");
         assert_eq!(NodeShape::Trapezoid.to_string(), "trapezoid");
+        assert_eq!(NodeShape::Terminal.to_string(), "terminal");
     }
 
     #[test]

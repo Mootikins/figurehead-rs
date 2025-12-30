@@ -169,7 +169,7 @@ impl FlowchartLayoutAlgorithm {
                 };
                 (6, height_extra)
             }
-            NodeShape::Circle => (4, 0),
+            NodeShape::Circle | NodeShape::Terminal => (4, 0),
             NodeShape::Hexagon => (6, 0),
             NodeShape::Asymmetric | NodeShape::Parallelogram | NodeShape::Trapezoid => (6, 0),
             NodeShape::Cylinder => (6, 2),

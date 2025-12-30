@@ -8,9 +8,11 @@ pub mod flowchart;
 pub mod gitgraph;
 pub mod orchestrator;
 pub mod sequence;
+pub mod state;
 
 pub use class::*;
 pub use flowchart::*;
 pub use gitgraph::*;
 pub use orchestrator::*;
 pub use sequence::*;
+pub use state::*;

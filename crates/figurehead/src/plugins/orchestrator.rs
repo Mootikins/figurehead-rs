@@ -12,6 +12,7 @@ use crate::plugins::class::ClassDatabase;
 use crate::plugins::flowchart::FlowchartDatabase;
 use crate::plugins::gitgraph::GitGraphDatabase;
 use crate::plugins::sequence::SequenceDatabase;
+use crate::plugins::state::StateDatabase;
 
 /// Plugin orchestrator that coordinates the entire pipeline
 ///
@@ -29,6 +30,8 @@ pub struct Orchestrator {
     sequence_renderer: Option<crate::plugins::sequence::SequenceRenderer>,
     class_parser: Option<crate::plugins::class::ClassParser>,
     class_renderer: Option<crate::plugins::class::ClassRenderer>,
+    state_parser: Option<crate::plugins::state::StateParser>,
+    state_renderer: Option<crate::plugins::state::StateRenderer>,
 }
 
 impl Orchestrator {
@@ -45,6 +48,8 @@ impl Orchestrator {
             sequence_renderer: None,
             class_parser: None,
             class_renderer: None,
+            state_parser: None,
+            state_renderer: None,
         }
     }
 
@@ -71,6 +76,8 @@ impl Orchestrator {
             sequence_renderer: None,
             class_parser: None,
             class_renderer: None,
+            state_parser: None,
+            state_renderer: None,
         }
     }
 
@@ -97,6 +104,8 @@ impl Orchestrator {
             sequence_renderer: Some(crate::plugins::sequence::SequenceRenderer::new()),
             class_parser: Some(crate::plugins::class::ClassParser::new()),
             class_renderer: Some(crate::plugins::class::ClassRenderer::new()),
+            state_parser: Some(crate::plugins::state::StateParser::new()),
+            state_renderer: Some(crate::plugins::state::StateRenderer::new()),
         }
     }
 
@@ -105,16 +114,18 @@ impl Orchestrator {
         self.detectors.insert(name, detector);
     }
 
-    /// Register the default set of detectors (flowchart, gitgraph, sequence, class)
+    /// Register the default set of detectors (flowchart, gitgraph, sequence, class, state)
     pub fn register_default_detectors(&mut self) -> &mut Self {
         use crate::plugins::class::ClassDetector;
         use crate::plugins::flowchart::FlowchartDetector;
         use crate::plugins::gitgraph::GitGraphDetector;
         use crate::plugins::sequence::SequenceDetector;
+        use crate::plugins::state::StateDetector;
         self.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
         self.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
         self.register_detector("sequence".to_string(), Box::new(SequenceDetector::new()));
         self.register_detector("class".to_string(), Box::new(ClassDetector::new()));
+        self.register_detector("state".to_string(), Box::new(StateDetector::new()));
         self
     }
 
@@ -187,6 +198,7 @@ impl Orchestrator {
             "gitgraph" => self.process_gitgraph(input),
             "sequence" => self.process_sequence(input),
             "class" => self.process_class(input),
+            "state" => self.process_state(input),
             _ => {
                 warn!(diagram_type, "Unsupported diagram type");
                 Err(anyhow::anyhow!(
@@ -364,6 +376,48 @@ impl Orchestrator {
         drop(_render_enter);
 
         info!("Class diagram processing completed successfully");
+        Ok(canvas)
+    }
+
+    /// Process state diagram input directly (skip detection)
+    ///
+    /// Useful when the caller already knows the diagram type.
+    pub fn process_state(&self, input: &str) -> Result<String> {
+        let state_span = span!(Level::INFO, "process_state", input_len = input.len());
+        let _enter = state_span.enter();
+
+        info!("Processing state diagram");
+
+        // Step 1: Parse the input
+        let parse_span = span!(Level::DEBUG, "pipeline_parse");
+        let _parse_enter = parse_span.enter();
+        let parser = self
+            .state_parser
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No state parser available"))?;
+
+        let mut database = StateDatabase::new();
+        parser.parse(input, &mut database)?;
+        debug!(
+            state_count = database.state_count(),
+            transition_count = database.transition_count(),
+            "Parsing completed"
+        );
+        drop(_parse_enter);
+
+        // Step 2: Render the result
+        let render_span = span!(Level::DEBUG, "pipeline_render");
+        let _render_enter = render_span.enter();
+        let renderer = self
+            .state_renderer
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No state renderer available"))?;
+
+        let canvas = renderer.render(&database)?;
+        debug!(output_len = canvas.len(), "Rendering completed");
+        drop(_render_enter);
+
+        info!("State diagram processing completed successfully");
         Ok(canvas)
     }
 }

@@ -263,7 +263,7 @@ impl FlowchartRenderer {
                 self.draw_rectangle(canvas, node, label, BoxChars::rounded(self.style))
             }
             NodeShape::Diamond => self.draw_diamond(canvas, node, label),
-            NodeShape::Circle => self.draw_circle(canvas, node, label),
+            NodeShape::Circle | NodeShape::Terminal => self.draw_circle(canvas, node, label),
             NodeShape::Hexagon => self.draw_hexagon(canvas, node, label),
             NodeShape::Asymmetric => self.draw_asymmetric(canvas, node, label),
             NodeShape::Cylinder => self.draw_cylinder(canvas, node, label),
