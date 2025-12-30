@@ -72,9 +72,7 @@ impl ChumskyFlowchartParser {
             .ignore_then(ident().map(|s: &str| s.to_string()))
             .then_ignore(optional_whitespace())
             .then(Self::style_string_parser())
-            .map(|(name, style_str)| {
-                Statement::ClassDef(name, StyleDefinition::parse(&style_str))
-            })
+            .map(|(name, style_str)| Statement::ClassDef(name, StyleDefinition::parse(&style_str)))
     }
 
     /// Parse `style nodeId1,nodeId2 fill:#f9f,stroke:#333`
@@ -145,8 +143,7 @@ impl ChumskyFlowchartParser {
 
     /// Parse `:::className` suffix for inline class application
     fn class_suffix_parser<'src>() -> impl Parser<'src, &'src str, String> + Clone {
-        just(":::")
-            .ignore_then(ident().map(|s: &str| s.to_string()))
+        just(":::").ignore_then(ident().map(|s: &str| s.to_string()))
     }
 
     fn node_parser<'src>() -> impl Parser<'src, &'src str, Node> + Clone {
@@ -972,7 +969,9 @@ mod tests {
         use crate::core::Color;
 
         let parser = ChumskyFlowchartParser::new();
-        let stmt = parser.parse_statement("classDef highlight fill:#f9f,stroke:#333").unwrap();
+        let stmt = parser
+            .parse_statement("classDef highlight fill:#f9f,stroke:#333")
+            .unwrap();
 
         if let Statement::ClassDef(name, style) = stmt {
             assert_eq!(name, "highlight");
@@ -988,7 +987,9 @@ mod tests {
         use crate::core::Color;
 
         let parser = ChumskyFlowchartParser::new();
-        let stmt = parser.parse_statement("style A,B fill:#f00,color:#fff").unwrap();
+        let stmt = parser
+            .parse_statement("style A,B fill:#f00,color:#fff")
+            .unwrap();
 
         if let Statement::Style(node_ids, style) = stmt {
             assert_eq!(node_ids, vec!["A", "B"]);
@@ -1017,7 +1018,9 @@ mod tests {
         use crate::core::Color;
 
         let parser = ChumskyFlowchartParser::new();
-        let stmt = parser.parse_statement("linkStyle 0,1,2 stroke:#ff3,stroke-width:4px").unwrap();
+        let stmt = parser
+            .parse_statement("linkStyle 0,1,2 stroke:#ff3,stroke-width:4px")
+            .unwrap();
 
         if let Statement::LinkStyle(indices, style) = stmt {
             assert_eq!(indices, vec![0, 1, 2]);

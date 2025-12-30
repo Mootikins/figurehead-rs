@@ -8,7 +8,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 
-use crate::colorizer::{colorize_output, extract_styles};
+use crate::colorizer::{colorize_output, extract_styles, StyleInfo};
 use figurehead::core::logging::init_logging;
 use figurehead::plugins::Orchestrator;
 use figurehead::{CharacterSet, DiamondStyle, RenderConfig};
@@ -244,7 +244,15 @@ impl FigureheadApp {
                 style,
                 diamond,
                 color,
-            } => self.convert_command(input, output, skip_detection, style, diamond, color, cli.verbose),
+            } => self.convert_command(
+                input,
+                output,
+                skip_detection,
+                style,
+                diamond,
+                color,
+                cli.verbose,
+            ),
             Commands::Detect { input } => self.detect_command(input, cli.verbose),
             Commands::Types { json } => self.types_command(json, cli.verbose),
             Commands::Validate { input } => self.validate_command(input, cli.verbose),
@@ -252,6 +260,7 @@ impl FigureheadApp {
     }
 
     /// Handle the convert command
+    #[allow(clippy::too_many_arguments)]
     fn convert_command(
         &mut self,
         input: Option<PathBuf>,
@@ -263,7 +272,7 @@ impl FigureheadApp {
         verbose: bool,
     ) -> Result<()> {
         // Read input
-        let content = self.read_input(input.clone())?;
+        let content = self.read_input(input)?;
 
         if verbose {
             eprintln!("Read {} bytes of input", content.len());
@@ -276,32 +285,43 @@ impl FigureheadApp {
         self.orchestrator = orchestrator;
 
         // Process the diagram
-        let result = if skip_detection {
-            self.orchestrator.process_flowchart(&content)
+        // For flowcharts, we can get the database for proper style extraction
+        let should_colorize = self.should_colorize(&output, color);
+
+        let (ascii_output, styles) = if skip_detection {
+            // Direct flowchart processing - use database for styles
+            let (output, db) = self
+                .orchestrator
+                .process_flowchart_with_database(&content)?;
+            let styles = if should_colorize {
+                StyleInfo::from_database(&db)
+            } else {
+                StyleInfo::default()
+            };
+            (output, styles)
         } else {
-            self.orchestrator.process(&content)
+            // Auto-detection - fall back to text-based style extraction
+            let output = self.orchestrator.process(&content)?;
+            let styles = if should_colorize {
+                extract_styles(&content)
+            } else {
+                StyleInfo::default()
+            };
+            (output, styles)
         };
 
-        match result {
-            Ok(ascii_output) => {
-                if verbose {
-                    eprintln!("Successfully converted diagram to ASCII");
-                }
-                // Apply colors if enabled and styles are present
-                let final_output = if self.should_colorize(&output, color) {
-                    let styles = extract_styles(&content);
-                    colorize_output(&content, &ascii_output, &styles)
-                } else {
-                    ascii_output
-                };
-                self.write_output(output, &final_output)?;
-                Ok(())
-            }
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                Err(e)
-            }
+        if verbose {
+            eprintln!("Successfully converted diagram to ASCII");
         }
+
+        // Apply colors if enabled and styles are present
+        let final_output = if should_colorize {
+            colorize_output(&content, &ascii_output, &styles)
+        } else {
+            ascii_output
+        };
+        self.write_output(output, &final_output)?;
+        Ok(())
     }
 
     /// Determine if we should colorize the output based on color choice and output destination

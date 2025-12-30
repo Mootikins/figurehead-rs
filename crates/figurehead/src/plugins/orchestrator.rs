@@ -253,6 +253,57 @@ impl Orchestrator {
         Ok(canvas)
     }
 
+    /// Process flowchart input and return both output and the parsed database
+    ///
+    /// This method is useful when callers need access to the parsed data structure
+    /// (e.g., for applying style-based colorization to the output).
+    pub fn process_flowchart_with_database(
+        &self,
+        input: &str,
+    ) -> Result<(String, FlowchartDatabase)> {
+        let flowchart_span = span!(
+            Level::INFO,
+            "process_flowchart_with_db",
+            input_len = input.len()
+        );
+        let _enter = flowchart_span.enter();
+
+        info!("Processing flowchart diagram (with database)");
+
+        // Step 1: Parse the input
+        let parse_span = span!(Level::DEBUG, "pipeline_parse");
+        let _parse_enter = parse_span.enter();
+        let parser = self
+            .flowchart_parser
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No flowchart parser available"))?;
+
+        let mut database = FlowchartDatabase::new();
+        parser.parse(input, &mut database)?;
+        debug!(
+            node_count = database.node_count(),
+            edge_count = database.edge_count(),
+            "Parsing completed"
+        );
+        drop(_parse_enter);
+
+        // Step 2: Render the result
+        let render_span = span!(Level::DEBUG, "pipeline_render");
+        let _render_enter = render_span.enter();
+        let renderer = self
+            .ascii_renderer
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No ASCII renderer available"))?;
+
+        let canvas = renderer.render(&database)?;
+        debug!(output_len = canvas.len(), "Rendering completed");
+        drop(_render_enter);
+
+        info!("Pipeline completed successfully");
+
+        Ok((canvas, database))
+    }
+
     /// Process git graph input directly (skip detection)
     ///
     /// Useful when the caller already knows the diagram type.

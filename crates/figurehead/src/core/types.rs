@@ -161,9 +161,7 @@ impl Color {
         let s = s.trim();
         if let Some(hex) = s.strip_prefix('#') {
             // Validate hex: 3 or 6 hex digits
-            if (hex.len() == 3 || hex.len() == 6)
-                && hex.chars().all(|c| c.is_ascii_hexdigit())
-            {
+            if (hex.len() == 3 || hex.len() == 6) && hex.chars().all(|c| c.is_ascii_hexdigit()) {
                 return Some(Color::Hex(s.to_string()));
             }
         } else if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphabetic()) {
@@ -755,10 +753,7 @@ mod tests {
             Some(Color::Hex("#ff0000".to_string()))
         );
         // 3-digit hex
-        assert_eq!(
-            Color::parse("#f00"),
-            Some(Color::Hex("#f00".to_string()))
-        );
+        assert_eq!(Color::parse("#f00"), Some(Color::Hex("#f00".to_string())));
         // With whitespace
         assert_eq!(
             Color::parse("  #abc  "),
@@ -771,14 +766,8 @@ mod tests {
 
     #[test]
     fn test_color_parse_named() {
-        assert_eq!(
-            Color::parse("red"),
-            Some(Color::Named("red".to_string()))
-        );
-        assert_eq!(
-            Color::parse("BLUE"),
-            Some(Color::Named("blue".to_string()))
-        );
+        assert_eq!(Color::parse("red"), Some(Color::Named("red".to_string())));
+        assert_eq!(Color::parse("BLUE"), Some(Color::Named("blue".to_string())));
         // Invalid
         assert_eq!(Color::parse("red123"), None);
         assert_eq!(Color::parse(""), None);
@@ -787,8 +776,14 @@ mod tests {
     #[test]
     fn test_color_to_rgb() {
         // 6-digit hex
-        assert_eq!(Color::Hex("#ff0000".to_string()).to_rgb(), Some((255, 0, 0)));
-        assert_eq!(Color::Hex("#00ff00".to_string()).to_rgb(), Some((0, 255, 0)));
+        assert_eq!(
+            Color::Hex("#ff0000".to_string()).to_rgb(),
+            Some((255, 0, 0))
+        );
+        assert_eq!(
+            Color::Hex("#00ff00".to_string()).to_rgb(),
+            Some((0, 255, 0))
+        );
         // 3-digit hex
         assert_eq!(Color::Hex("#f00".to_string()).to_rgb(), Some((255, 0, 0)));
         assert_eq!(Color::Hex("#0f0".to_string()).to_rgb(), Some((0, 255, 0)));

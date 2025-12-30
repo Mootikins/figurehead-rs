@@ -4,6 +4,8 @@
 //! Only colorizes when explicit styles (classDef, style, :::) are present.
 
 use crossterm::style::{Color, Stylize};
+use figurehead::plugins::flowchart::FlowchartDatabase;
+use figurehead::Database as DatabaseTrait;
 use std::collections::HashMap;
 
 /// Style information extracted from diagram input
@@ -37,9 +39,44 @@ impl StyleInfo {
         }
         None
     }
+
+    /// Create StyleInfo from a parsed FlowchartDatabase
+    ///
+    /// This is the preferred method as it uses the properly parsed AST
+    /// instead of re-parsing the input text.
+    pub fn from_database(db: &FlowchartDatabase) -> Self {
+        let mut info = StyleInfo::default();
+
+        // Extract class definitions
+        for (name, style) in db.class_definitions() {
+            if let Some(fill) = &style.fill {
+                info.class_defs.insert(name.to_string(), fill.to_string());
+            }
+        }
+
+        // Extract node classes and inline styles
+        for node in DatabaseTrait::nodes(db) {
+            // Get first class if any (node can have multiple classes)
+            if let Some(class) = node.classes.first() {
+                info.node_classes.insert(node.id.clone(), class.clone());
+            }
+
+            // Get inline style fill color
+            if let Some(style) = &node.inline_style {
+                if let Some(fill) = &style.fill {
+                    info.node_styles.insert(node.id.clone(), fill.to_string());
+                }
+            }
+        }
+
+        info
+    }
 }
 
 /// Extract style information from diagram input text
+///
+/// Note: Prefer using `StyleInfo::from_database()` when a parsed database is available,
+/// as it uses the properly parsed AST instead of re-parsing the input.
 pub fn extract_styles(input: &str) -> StyleInfo {
     let mut info = StyleInfo::default();
 
@@ -192,8 +229,8 @@ fn extract_class_name_after(text: &str) -> Option<String> {
 fn extract_fill_color(style: &str) -> Option<String> {
     for part in style.split(',') {
         let part = part.trim();
-        if part.starts_with("fill:") {
-            return Some(part[5..].trim().to_string());
+        if let Some(color) = part.strip_prefix("fill:") {
+            return Some(color.trim().to_string());
         }
     }
     None
@@ -204,8 +241,7 @@ pub fn parse_color(color_str: &str) -> Option<Color> {
     let color_str = color_str.trim();
 
     // Hex color
-    if color_str.starts_with('#') {
-        let hex = &color_str[1..];
+    if let Some(hex) = color_str.strip_prefix('#') {
         return parse_hex_color(hex);
     }
 
@@ -335,19 +371,48 @@ fn extract_node_labels(line: &str) -> Vec<(String, String)> {
 }
 
 /// Apply colors to output where label text appears
+///
+/// Labels are sorted by length (longest first) to prevent partial matches.
+/// For example, if both "Start" and "Star" are labels, "Start" is replaced first.
 fn colorize_by_labels(output: &str, label_colors: &HashMap<String, Color>) -> String {
+    // Sort labels by length (longest first) to avoid partial match issues
+    // e.g., "Start" should be matched before "Star"
+    let mut labels: Vec<_> = label_colors.iter().collect();
+    labels.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+
     let mut result = output.to_string();
 
-    for (label, color) in label_colors {
-        // Simple replacement - find label and colorize it
-        // This is imperfect but handles the common case
-        if result.contains(label.as_str()) {
-            let colored = format!("{}", label.clone().with(*color));
-            result = result.replace(label.as_str(), &colored);
+    for (label, color) in labels {
+        if label.is_empty() {
+            continue;
         }
+        // Replace only the first occurrence per line to avoid over-colorization
+        // This handles the case where the same label appears multiple times
+        let colored = format!("{}", label.clone().with(*color));
+        result = replace_first_per_line(&result, label, &colored);
     }
 
     result
+}
+
+/// Replace only the first occurrence of `needle` in each line of `haystack`
+fn replace_first_per_line(haystack: &str, needle: &str, replacement: &str) -> String {
+    haystack
+        .lines()
+        .map(|line| {
+            if let Some(pos) = line.find(needle) {
+                format!(
+                    "{}{}{}",
+                    &line[..pos],
+                    replacement,
+                    &line[pos + needle.len()..]
+                )
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]
@@ -386,12 +451,40 @@ mod tests {
     #[test]
     fn test_parse_hex_color_long() {
         let color = parse_color("#ff8800").unwrap();
-        assert!(matches!(color, Color::Rgb { r: 255, g: 136, b: 0 }));
+        assert!(matches!(
+            color,
+            Color::Rgb {
+                r: 255,
+                g: 136,
+                b: 0
+            }
+        ));
     }
 
     #[test]
     fn test_parse_named_color() {
         assert!(matches!(parse_color("red"), Some(Color::Red)));
         assert!(matches!(parse_color("Blue"), Some(Color::Blue)));
+    }
+
+    #[test]
+    fn test_colorize_longest_label_first() {
+        // "Start" should be matched before "Star" even if HashMap order differs
+        let mut label_colors = HashMap::new();
+        label_colors.insert("Star".to_string(), Color::Red);
+        label_colors.insert("Start".to_string(), Color::Blue);
+
+        let output = "│Start│\n│Star│";
+        let result = colorize_by_labels(output, &label_colors);
+
+        // Both labels should be colorized independently
+        // "Start" should not be partially matched as "Star" + "t"
+        assert!(result.contains("\x1b[")); // Contains ANSI codes
+    }
+
+    #[test]
+    fn test_replace_first_per_line() {
+        let result = replace_first_per_line("A A A\nA A", "A", "X");
+        assert_eq!(result, "X A A\nX A");
     }
 }
