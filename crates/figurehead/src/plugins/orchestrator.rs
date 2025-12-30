@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use tracing::{debug, info, span, trace, warn, Level};
 
 use crate::core::{Database, Detector, Parser, Renderer, RenderConfig};
+use crate::plugins::class::ClassDatabase;
 use crate::plugins::flowchart::FlowchartDatabase;
 use crate::plugins::gitgraph::GitGraphDatabase;
 use crate::plugins::sequence::SequenceDatabase;
@@ -27,6 +28,8 @@ pub struct Orchestrator {
     gitgraph_renderer: Option<crate::plugins::gitgraph::GitGraphRenderer>,
     sequence_parser: Option<crate::plugins::sequence::SequenceParser>,
     sequence_renderer: Option<crate::plugins::sequence::SequenceRenderer>,
+    class_parser: Option<crate::plugins::class::ClassParser>,
+    class_renderer: Option<crate::plugins::class::ClassRenderer>,
 }
 
 impl Orchestrator {
@@ -42,6 +45,8 @@ impl Orchestrator {
             gitgraph_renderer: None,
             sequence_parser: None,
             sequence_renderer: None,
+            class_parser: None,
+            class_renderer: None,
         }
     }
 
@@ -67,6 +72,8 @@ impl Orchestrator {
             gitgraph_renderer: None,
             sequence_parser: None,
             sequence_renderer: None,
+            class_parser: None,
+            class_renderer: None,
         }
     }
 
@@ -92,6 +99,8 @@ impl Orchestrator {
             gitgraph_renderer: Some(crate::plugins::gitgraph::GitGraphRenderer::new()),
             sequence_parser: Some(crate::plugins::sequence::SequenceParser::new()),
             sequence_renderer: Some(crate::plugins::sequence::SequenceRenderer::new()),
+            class_parser: Some(crate::plugins::class::ClassParser::new()),
+            class_renderer: Some(crate::plugins::class::ClassRenderer::new()),
         }
     }
 
@@ -100,14 +109,16 @@ impl Orchestrator {
         self.detectors.insert(name, detector);
     }
 
-    /// Register the default set of detectors (flowchart, gitgraph, sequence)
+    /// Register the default set of detectors (flowchart, gitgraph, sequence, class)
     pub fn register_default_detectors(&mut self) -> &mut Self {
+        use crate::plugins::class::ClassDetector;
         use crate::plugins::flowchart::FlowchartDetector;
         use crate::plugins::gitgraph::GitGraphDetector;
         use crate::plugins::sequence::SequenceDetector;
         self.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
         self.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
         self.register_detector("sequence".to_string(), Box::new(SequenceDetector::new()));
+        self.register_detector("class".to_string(), Box::new(ClassDetector::new()));
         self
     }
 
@@ -179,6 +190,7 @@ impl Orchestrator {
             "flowchart" => self.process_flowchart(input),
             "gitgraph" => self.process_gitgraph(input),
             "sequence" => self.process_sequence(input),
+            "class" => self.process_class(input),
             _ => {
                 warn!(diagram_type, "Unsupported diagram type");
                 Err(anyhow::anyhow!(
@@ -314,6 +326,48 @@ impl Orchestrator {
         drop(_render_enter);
 
         info!("Sequence diagram processing completed successfully");
+        Ok(canvas)
+    }
+
+    /// Process class diagram input directly (skip detection)
+    ///
+    /// Useful when the caller already knows the diagram type.
+    pub fn process_class(&self, input: &str) -> Result<String> {
+        let class_span = span!(Level::INFO, "process_class", input_len = input.len());
+        let _enter = class_span.enter();
+
+        info!("Processing class diagram");
+
+        // Step 1: Parse the input
+        let parse_span = span!(Level::DEBUG, "pipeline_parse");
+        let _parse_enter = parse_span.enter();
+        let parser = self
+            .class_parser
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No class parser available"))?;
+
+        let mut database = ClassDatabase::new();
+        parser.parse(input, &mut database)?;
+        debug!(
+            class_count = database.class_count(),
+            relationship_count = database.relationship_count(),
+            "Parsing completed"
+        );
+        drop(_parse_enter);
+
+        // Step 2: Render the result
+        let render_span = span!(Level::DEBUG, "pipeline_render");
+        let _render_enter = render_span.enter();
+        let renderer = self
+            .class_renderer
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No class renderer available"))?;
+
+        let canvas = renderer.render_database(&database)?;
+        debug!(output_len = canvas.len(), "Rendering completed");
+        drop(_render_enter);
+
+        info!("Class diagram processing completed successfully");
         Ok(canvas)
     }
 }
@@ -553,9 +607,48 @@ mod tests {
    checkout main
    merge develop"#;
         let result = orchestrator.process_gitgraph(input);
-        
+
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(!output.is_empty());
+    }
+
+    #[test]
+    fn test_process_class() {
+        use crate::plugins::class::ClassDetector;
+
+        let mut orchestrator = Orchestrator::with_all_plugins();
+        orchestrator.register_detector("class".to_string(), Box::new(ClassDetector::new()));
+
+        let input = "classDiagram\n    class Animal";
+        let result = orchestrator.process(input);
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(!output.is_empty());
+        assert!(output.contains("Animal"));
+    }
+
+    #[test]
+    fn test_process_class_with_members() {
+        let orchestrator = Orchestrator::with_all_plugins();
+
+        let input = r#"classDiagram
+    class Animal {
+        +name: string
+        -age: int
+        +eat()
+        #digest()*
+    }"#;
+        let result = orchestrator.process_class(input);
+
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(!output.is_empty());
+        assert!(output.contains("Animal"));
+        assert!(output.contains("+name: string"));
+        assert!(output.contains("-age: int"));
+        assert!(output.contains("+eat()"));
+        assert!(output.contains("#digest()*"));
     }
 }

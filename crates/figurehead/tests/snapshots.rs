@@ -251,3 +251,56 @@ fn test_sequence_open_arrows() {
     Bob-->Alice: Sync response"#,
     );
 }
+
+// =============================================================================
+// Class Diagram Snapshots
+// =============================================================================
+
+#[test]
+fn test_class_simple() {
+    assert_fixture(
+        "class_simple",
+        r#"classDiagram
+    class Animal"#,
+    );
+}
+
+#[test]
+fn test_class_with_attributes() {
+    assert_fixture(
+        "class_with_attributes",
+        r#"classDiagram
+    class Animal {
+        +name: string
+        -age: int
+    }"#,
+    );
+}
+
+#[test]
+fn test_class_with_methods() {
+    assert_fixture(
+        "class_with_methods",
+        r#"classDiagram
+    class Animal {
+        +name: string
+        +eat()
+        +sleep(): void
+        #digest()*
+    }"#,
+    );
+}
+
+#[test]
+fn test_class_multiple() {
+    assert_fixture(
+        "class_multiple",
+        r#"classDiagram
+    class Animal {
+        +name
+    }
+    class Dog {
+        +breed
+    }"#,
+    );
+}
