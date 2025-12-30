@@ -190,16 +190,17 @@ impl GitGraphDatabase {
             adjacency.get_mut(edge.from.as_str()).unwrap().push(edge.to.as_str());
         }
 
-        // Find all nodes with in-degree 0
+        // Find all nodes with in-degree 0 (sorted for deterministic output)
         let mut queue: Vec<&str> = in_degree
             .iter()
             .filter(|(_, &degree)| degree == 0)
             .map(|(&id, _)| id)
             .collect();
+        queue.sort(); // Ensure deterministic order
 
         let mut result = Vec::new();
 
-        // Process nodes
+        // Process nodes (use pop to maintain sorted order - process last alphabetically first)
         while let Some(node_id) = queue.pop() {
             result.push(node_id);
 
@@ -209,18 +210,21 @@ impl GitGraphDatabase {
                     let degree = in_degree.get_mut(neighbor).unwrap();
                     *degree -= 1;
                     if *degree == 0 {
-                        queue.push(neighbor);
+                        // Insert in sorted position for deterministic order
+                        let pos = queue.binary_search(&neighbor).unwrap_or_else(|p| p);
+                        queue.insert(pos, neighbor);
                     }
                 }
             }
         }
 
-        // Add any remaining nodes (cycles)
-        for node_id in self.nodes.keys() {
-            if !result.contains(&node_id.as_str()) {
-                result.push(node_id.as_str());
-            }
-        }
+        // Add any remaining nodes (cycles) in sorted order for determinism
+        let mut remaining: Vec<&str> = self.nodes.keys()
+            .map(|s| s.as_str())
+            .filter(|id| !result.contains(id))
+            .collect();
+        remaining.sort();
+        result.extend(remaining);
 
         result
     }
