@@ -3,7 +3,7 @@
 //! Parses Mermaid.js class diagram syntax into AST structures.
 
 use super::database::{Classifier, RelationshipKind, Visibility};
-use crate::core::chumsky_utils::{inline_whitespace, optional_whitespace, whitespace_required};
+use crate::core::chumsky_utils::{optional_whitespace, whitespace_required};
 use anyhow::Result;
 use chumsky::prelude::*;
 use chumsky::text::{ident, whitespace};
@@ -103,7 +103,7 @@ impl ChumskyClassParser {
         // Class with body: class Name { members }
         let class_with_body = text::keyword("class")
             .then_ignore(whitespace().at_least(1))
-            .ignore_then(class_name.clone())
+            .ignore_then(class_name)
             .then_ignore(ws.clone())
             .then_ignore(just('{'))
             .then_ignore(ws.clone())
@@ -130,7 +130,7 @@ impl ChumskyClassParser {
 
     fn member_parser<'src>() -> impl Parser<'src, &'src str, ParsedMember> + Clone {
         // Visibility prefix: + - # ~
-        let visibility = one_of("+-#~").map(|c| Visibility::from_char(c)).or_not();
+        let visibility = one_of("+-#~").map(Visibility::from_char).or_not();
 
         // Member name (until : or ( or end of member)
         let member_name = none_of(":(){}*$\n\r")
@@ -164,11 +164,10 @@ impl ChumskyClassParser {
 
         // Method: visibility name(args): return_type classifier
         let method = visibility
-            .clone()
-            .then(member_name.clone())
+            .then(member_name)
             .then(method_parens)
             .then(return_type)
-            .then(classifier.clone())
+            .then(classifier)
             .map(|((((vis, name), _args), ret_type), cls)| ParsedMember {
                 visibility: vis.flatten(),
                 name,
@@ -215,18 +214,17 @@ impl ChumskyClassParser {
 
         // Label after colon: : label (consumes to end of line)
         let label = just(':')
-            .ignore_then(inline_ws.clone())
+            .ignore_then(inline_ws)
             .ignore_then(none_of("\n\r").repeated().to_slice())
             .map(|s: &str| s.trim().to_string())
             .or_not();
 
         class_name
-            .clone()
-            .then_ignore(inline_ws.clone())
+            .then_ignore(inline_ws)
             .then(rel_kind)
-            .then_ignore(inline_ws.clone())
+            .then_ignore(inline_ws)
             .then(class_name)
-            .then_ignore(inline_ws.clone())
+            .then_ignore(inline_ws)
             .then(label)
             .map(|(((from, kind), to), label)| ParsedRelationship {
                 from,
