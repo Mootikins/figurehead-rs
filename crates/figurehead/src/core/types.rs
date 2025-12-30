@@ -159,8 +159,7 @@ impl Color {
     /// Parse a color from Mermaid syntax
     pub fn parse(s: &str) -> Option<Self> {
         let s = s.trim();
-        if s.starts_with('#') {
-            let hex = &s[1..];
+        if let Some(hex) = s.strip_prefix('#') {
             // Validate hex: 3 or 6 hex digits
             if (hex.len() == 3 || hex.len() == 6)
                 && hex.chars().all(|c| c.is_ascii_hexdigit())

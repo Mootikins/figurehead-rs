@@ -1,6 +1,7 @@
 //! Figurehead CLI - Convert Mermaid.js diagrams to ASCII art
 
 mod cli;
+mod colorizer;
 
 use clap::Parser;
 

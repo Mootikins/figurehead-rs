@@ -156,7 +156,6 @@ impl ChumskyFlowchartParser {
 
         // A[label] - Rectangle
         let rectangular = node_id
-            .clone()
             .then_ignore(just('['))
             .then(Self::label_parser())
             .then_ignore(just(']'))
@@ -164,7 +163,6 @@ impl ChumskyFlowchartParser {
 
         // A(label) - Rounded rectangle / stadium
         let rounded = node_id
-            .clone()
             .then_ignore(just('('))
             .then(Self::label_parser())
             .then_ignore(just(')'))
@@ -172,7 +170,6 @@ impl ChumskyFlowchartParser {
 
         // A{label} - Diamond
         let diamond = node_id
-            .clone()
             .then_ignore(just('{'))
             .then(Self::label_parser())
             .then_ignore(just('}'))
@@ -180,7 +177,6 @@ impl ChumskyFlowchartParser {
 
         // A((label)) - Circle
         let circle = node_id
-            .clone()
             .then_ignore(just("(("))
             .then(Self::label_parser())
             .then_ignore(just("))"))
@@ -188,7 +184,6 @@ impl ChumskyFlowchartParser {
 
         // A[[label]] - Subroutine
         let subroutine = node_id
-            .clone()
             .then_ignore(just("[["))
             .then(Self::label_parser())
             .then_ignore(just("]]"))
@@ -196,7 +191,6 @@ impl ChumskyFlowchartParser {
 
         // A{{label}} - Hexagon
         let hexagon = node_id
-            .clone()
             .then_ignore(just("{{"))
             .then(Self::label_parser())
             .then_ignore(just("}}"))
@@ -204,7 +198,6 @@ impl ChumskyFlowchartParser {
 
         // A[(label)] - Cylinder / database
         let cylinder = node_id
-            .clone()
             .then_ignore(just("[("))
             .then(Self::label_parser())
             .then_ignore(just(")]"))
@@ -212,7 +205,6 @@ impl ChumskyFlowchartParser {
 
         // A[/label/] - Parallelogram (input/output)
         let parallelogram = node_id
-            .clone()
             .then_ignore(just("[/"))
             .then(Self::label_parser_no_slash())
             .then_ignore(just("/]"))
@@ -220,7 +212,6 @@ impl ChumskyFlowchartParser {
 
         // A[/label\] - Trapezoid
         let trapezoid = node_id
-            .clone()
             .then_ignore(just("[/"))
             .then(Self::label_parser_no_slash())
             .then_ignore(just("\\]"))
