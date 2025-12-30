@@ -458,11 +458,30 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             .map(|n| (n.id.as_str(), n))
             .collect();
 
-        // Pre-calculate merge junctions for targets with multiple incoming edges
+        // Pre-calculate merge junctions for targets with multiple incoming FORWARD edges
+        // (back-edges enter from the side and shouldn't count toward merge junctions)
         let mut merge_junctions: HashMap<&str, (usize, usize)> = HashMap::new();
         for (target_id, incoming_edges) in &edges_by_target {
-            if incoming_edges.len() > 1 {
-                if let Some(to) = node_positions.get(*target_id) {
+            if let Some(to) = node_positions.get(*target_id) {
+                // Count only forward edges (not back-edges)
+                let forward_edge_count = incoming_edges
+                    .iter()
+                    .filter(|edge| {
+                        if let Some(from) = node_positions.get(edge.from.as_str()) {
+                            // Forward edge: source is "before" target in flow direction
+                            match direction {
+                                Direction::TopDown => from.y < to.y,
+                                Direction::BottomUp => from.y > to.y,
+                                Direction::LeftRight => from.x < to.x,
+                                Direction::RightLeft => from.x > to.x,
+                            }
+                        } else {
+                            false
+                        }
+                    })
+                    .count();
+
+                if forward_edge_count > 1 {
                     let merge_point = match direction {
                         Direction::TopDown => (to.x + to.width / 2, to.y.saturating_sub(2)),
                         Direction::BottomUp => (to.x + to.width / 2, to.y + to.height + 2),
@@ -517,38 +536,108 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 // Check if this edge is part of a merge
                 let merge_junction = merge_junctions.get(edge.to.as_str()).copied();
 
-                // Calculate exit and entry points
-                let (exit_x, exit_y, entry_x, entry_y) = match direction {
-                    Direction::TopDown => (
-                        from.x + from.width / 2,
-                        from.y + from.height,
-                        to.x + to.width / 2,
-                        to.y,
-                    ),
-                    Direction::BottomUp => (
-                        from.x + from.width / 2,
-                        from.y,
-                        to.x + to.width / 2,
-                        to.y + to.height,
-                    ),
-                    Direction::LeftRight => (
-                        from.x + from.width,
-                        from.y + from.height / 2,
-                        to.x,
-                        to.y + to.height / 2,
-                    ),
-                    Direction::RightLeft => (
-                        from.x,
-                        from.y + from.height / 2,
-                        to.x + to.width,
-                        to.y + to.height / 2,
-                    ),
+                // Detect back-edges (edges going against the flow direction)
+                // Back-edge: when normal routing would require going "backwards"
+                // In TopDown: target top <= source bottom means edge goes UP
+                let is_back_edge = match direction {
+                    Direction::TopDown => to.y < from.y,   // target above source
+                    Direction::BottomUp => to.y > from.y,  // target below source
+                    Direction::LeftRight => to.x < from.x, // target left of source
+                    Direction::RightLeft => to.x > from.x, // target right of source
+                };
+
+                // Calculate exit and entry points (and waypoints for back-edges)
+                let waypoints = if is_back_edge {
+                    // Route back-edges around the diagram
+                    let route_x = max_width + 2; // Route 2 cells past right edge
+                    match direction {
+                        Direction::TopDown => {
+                            // Exit from right side, go right, up, left, enter from right
+                            let exit_x = from.x + from.width;
+                            let exit_y = from.y + from.height / 2;
+                            let entry_x = to.x + to.width;
+                            let entry_y = to.y + to.height / 2;
+                            vec![
+                                (exit_x, exit_y),
+                                (route_x, exit_y),
+                                (route_x, entry_y),
+                                (entry_x, entry_y),
+                            ]
+                        }
+                        Direction::BottomUp => {
+                            let exit_x = from.x + from.width;
+                            let exit_y = from.y + from.height / 2;
+                            let entry_x = to.x + to.width;
+                            let entry_y = to.y + to.height / 2;
+                            vec![
+                                (exit_x, exit_y),
+                                (route_x, exit_y),
+                                (route_x, entry_y),
+                                (entry_x, entry_y),
+                            ]
+                        }
+                        Direction::LeftRight => {
+                            let route_y = max_height + 2;
+                            let exit_x = from.x + from.width / 2;
+                            let exit_y = from.y + from.height;
+                            let entry_x = to.x + to.width / 2;
+                            let entry_y = to.y + to.height;
+                            vec![
+                                (exit_x, exit_y),
+                                (exit_x, route_y),
+                                (entry_x, route_y),
+                                (entry_x, entry_y),
+                            ]
+                        }
+                        Direction::RightLeft => {
+                            let route_y = max_height + 2;
+                            let exit_x = from.x + from.width / 2;
+                            let exit_y = from.y + from.height;
+                            let entry_x = to.x + to.width / 2;
+                            let entry_y = to.y + to.height;
+                            vec![
+                                (exit_x, exit_y),
+                                (exit_x, route_y),
+                                (entry_x, route_y),
+                                (entry_x, entry_y),
+                            ]
+                        }
+                    }
+                } else {
+                    // Normal forward edge
+                    let (exit_x, exit_y, entry_x, entry_y) = match direction {
+                        Direction::TopDown => (
+                            from.x + from.width / 2,
+                            from.y + from.height,
+                            to.x + to.width / 2,
+                            to.y,
+                        ),
+                        Direction::BottomUp => (
+                            from.x + from.width / 2,
+                            from.y,
+                            to.x + to.width / 2,
+                            to.y + to.height,
+                        ),
+                        Direction::LeftRight => (
+                            from.x + from.width,
+                            from.y + from.height / 2,
+                            to.x,
+                            to.y + to.height / 2,
+                        ),
+                        Direction::RightLeft => (
+                            from.x,
+                            from.y + from.height / 2,
+                            to.x + to.width,
+                            to.y + to.height / 2,
+                        ),
+                    };
+                    vec![(exit_x, exit_y), (entry_x, entry_y)]
                 };
 
                 positioned_edges.push(PositionedEdge {
                     from_id: edge.from.clone(),
                     to_id: edge.to.clone(),
-                    waypoints: vec![(exit_x, exit_y), (entry_x, entry_y)],
+                    waypoints,
                     junction,
                     merge_junction,
                     group_index: if is_split { Some(group_index) } else { None },
@@ -627,7 +716,11 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         );
         drop(_subgraph_enter);
 
-        let final_width = max_width + self.config.padding;
+        // Check if any back-edges need extra width for routing around diagram
+        let has_back_edges = positioned_edges.iter().any(|e| e.waypoints.len() > 2);
+        let back_edge_margin = if has_back_edges { 4 } else { 0 }; // route_x uses max_width + 2
+
+        let final_width = max_width + self.config.padding + back_edge_margin;
         let final_height = max_height + self.config.padding;
         info!(
             node_count = positioned_nodes.len(),

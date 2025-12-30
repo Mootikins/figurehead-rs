@@ -836,11 +836,16 @@ impl FlowchartRenderer {
             return;
         }
 
+        let has_arrow = edge_type.has_arrow();
+
+        // Handle multi-segment waypoints (for back-edges)
+        if waypoints.len() > 2 {
+            self.draw_multi_segment_edge(canvas, waypoints, &chars, has_arrow);
+            return;
+        }
+
         let (x1, y1) = waypoints[0];
         let (x2, y2) = waypoints[waypoints.len() - 1];
-
-        // Shorten endpoint by 1 to leave room for arrowhead
-        let has_arrow = edge_type.has_arrow();
 
         // Determine if we need orthogonal routing
         if y1 == y2 {
@@ -884,47 +889,212 @@ impl FlowchartRenderer {
                 canvas.set_char(x1, end_y, arrow);
             }
         } else {
-            // Orthogonal routing: horizontal first, then vertical
-            // For edges going right then down/up, place turn point 1 col before target
-            // to leave room for the arrow to connect to the node's side
-            let mid_y = y1;
-            let turn_x = if x2 > x1 {
-                x2.saturating_sub(1)
-            } else {
-                x2 + 1
-            };
+            // Orthogonal routing: vertical first, then horizontal for downward edges
+            // This ensures proper connection from source node
+            if y2 > y1 {
+                // Going down: vertical first, then horizontal, then down to target
+                // Turn point needs to be high enough to leave room for arrow segment
+                let turn_y = y2.saturating_sub(2).max(y1 + 1); // At least 2 rows above target
 
-            // Horizontal segment to turn point
-            self.draw_horizontal_line(canvas, mid_y, x1, turn_x, &chars);
+                // Vertical segment from source down to turn point
+                self.draw_vertical_line(canvas, x1, y1, turn_y, &chars);
 
-            // Corner at turn point
-            let corner = if self.style.is_ascii() {
-                '+'
-            } else if x2 > x1 {
-                if y2 > y1 {
-                    '┐'
+                // Corner at (x1, turn_y)
+                let corner1 = if self.style.is_ascii() {
+                    '+'
+                } else if x2 > x1 {
+                    '└'
                 } else {
                     '┘'
-                }
-            } else if y2 > y1 {
-                '┌'
-            } else {
-                '└'
-            };
-            canvas.set_char(turn_x, mid_y, corner);
-
-            // Vertical segment from corner toward target
-            self.draw_vertical_line(canvas, turn_x, mid_y, y2, &chars);
-
-            // Arrow pointing horizontally into target node
-            if has_arrow {
-                let arrow = if x2 > x1 {
-                    chars.arrow_right
-                } else {
-                    chars.arrow_left
                 };
-                canvas.set_char(turn_x, y2, arrow);
+                canvas.set_char(x1, turn_y, corner1);
+
+                // Horizontal segment to target x
+                self.draw_horizontal_line(canvas, turn_y, x1, x2, &chars);
+
+                // Corner at (x2, turn_y)
+                let corner2 = if self.style.is_ascii() {
+                    '+'
+                } else if x2 > x1 {
+                    '┐'
+                } else {
+                    '┌'
+                };
+                canvas.set_char(x2, turn_y, corner2);
+
+                // Vertical segment from corner to arrow position
+                self.draw_vertical_line(canvas, x2, turn_y, y2, &chars);
+
+                // Arrow pointing down into target
+                if has_arrow {
+                    canvas.set_char(x2, y2.saturating_sub(1), chars.arrow_down);
+                }
+            } else {
+                // Going up: horizontal first, then vertical
+                let turn_x = if x2 > x1 {
+                    x2.saturating_sub(1)
+                } else {
+                    x2 + 1
+                };
+
+                // Horizontal segment to turn point
+                self.draw_horizontal_line(canvas, y1, x1, turn_x, &chars);
+
+                // Corner at turn point
+                let corner = if self.style.is_ascii() {
+                    '+'
+                } else if x2 > x1 {
+                    '┘'
+                } else {
+                    '└'
+                };
+                canvas.set_char(turn_x, y1, corner);
+
+                // Vertical segment from corner toward target
+                self.draw_vertical_line(canvas, turn_x, y2, y1, &chars);
+
+                // Arrow pointing up into target
+                if has_arrow {
+                    canvas.set_char(turn_x, y2 + 1, chars.arrow_up);
+                }
             }
+        }
+    }
+
+    /// Draw a multi-segment edge (for back-edges routed around the diagram)
+    fn draw_multi_segment_edge(
+        &self,
+        canvas: &mut AsciiCanvas,
+        waypoints: &[(usize, usize)],
+        chars: &EdgeChars,
+        has_arrow: bool,
+    ) {
+        // Draw each segment between consecutive waypoints
+        for i in 0..waypoints.len() - 1 {
+            let (x1, y1) = waypoints[i];
+            let (x2, y2) = waypoints[i + 1];
+            let is_last = i == waypoints.len() - 2;
+
+            if x1 == x2 {
+                // Vertical segment
+                let end_y = if is_last && has_arrow {
+                    if y2 > y1 {
+                        y2.saturating_sub(1)
+                    } else {
+                        y2 + 1
+                    }
+                } else {
+                    y2
+                };
+                self.draw_vertical_line(canvas, x1, y1, end_y, chars);
+            } else if y1 == y2 {
+                // Horizontal segment
+                let end_x = if is_last && has_arrow {
+                    if x2 > x1 {
+                        x2.saturating_sub(1)
+                    } else {
+                        x2 + 1
+                    }
+                } else {
+                    x2
+                };
+                self.draw_horizontal_line(canvas, y1, x1, end_x, chars);
+            }
+
+            // Draw corner at waypoint (except at start and end)
+            if i > 0 {
+                let (prev_x, prev_y) = waypoints[i - 1];
+                let corner = self.get_corner_char(prev_x, prev_y, x1, y1, x2, y2);
+                canvas.set_char(x1, y1, corner);
+            }
+        }
+
+        // Draw arrow at the end
+        if has_arrow {
+            let (x1, y1) = waypoints[waypoints.len() - 2];
+            let (x2, y2) = waypoints[waypoints.len() - 1];
+            let arrow = if x1 == x2 {
+                if y2 > y1 {
+                    chars.arrow_down
+                } else {
+                    chars.arrow_up
+                }
+            } else if x2 > x1 {
+                chars.arrow_right
+            } else {
+                chars.arrow_left
+            };
+            let arrow_pos = if x1 == x2 {
+                (
+                    x2,
+                    if y2 > y1 {
+                        y2.saturating_sub(1)
+                    } else {
+                        y2 + 1
+                    },
+                )
+            } else {
+                (
+                    if x2 > x1 {
+                        x2.saturating_sub(1)
+                    } else {
+                        x2 + 1
+                    },
+                    y2,
+                )
+            };
+            canvas.set_char(arrow_pos.0, arrow_pos.1, arrow);
+        }
+    }
+
+    /// Get the appropriate corner character based on incoming and outgoing directions
+    fn get_corner_char(
+        &self,
+        prev_x: usize,
+        prev_y: usize,
+        curr_x: usize,
+        curr_y: usize,
+        next_x: usize,
+        next_y: usize,
+    ) -> char {
+        if self.style.is_ascii() {
+            return '+';
+        }
+
+        // Determine incoming and outgoing directions
+        let from_left = prev_x < curr_x;
+        let from_right = prev_x > curr_x;
+        let from_top = prev_y < curr_y;
+        let from_bottom = prev_y > curr_y;
+
+        let to_left = next_x < curr_x;
+        let to_right = next_x > curr_x;
+        let to_top = next_y < curr_y;
+        let to_bottom = next_y > curr_y;
+
+        match (
+            from_left,
+            from_right,
+            from_top,
+            from_bottom,
+            to_left,
+            to_right,
+            to_top,
+            to_bottom,
+        ) {
+            // Coming from left
+            (true, _, _, _, _, _, true, _) => '┘', // left to up
+            (true, _, _, _, _, _, _, true) => '┐', // left to down
+            // Coming from right
+            (_, true, _, _, _, _, true, _) => '└', // right to up
+            (_, true, _, _, _, _, _, true) => '┌', // right to down
+            // Coming from top
+            (_, _, true, _, true, _, _, _) => '┘', // top to left
+            (_, _, true, _, _, true, _, _) => '└', // top to right
+            // Coming from bottom
+            (_, _, _, true, true, _, _, _) => '┐', // bottom to left
+            (_, _, _, true, _, true, _, _) => '┌', // bottom to right
+            _ => '+',
         }
     }
 
@@ -1780,8 +1950,12 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
                 }
             }
             // Handle merge junction (edges to same target)
+            // Skip merge junction handling for back-edges (they have special routing)
             else if let Some(merge_junction) = edge.merge_junction {
-                if let (Some(fc), Some(tc)) = (from_center, to_center) {
+                if edge.waypoints.len() > 2 {
+                    // Back-edge with special routing - use the waypoints directly
+                    self.draw_edge(&mut canvas, &edge.waypoints, edge_type);
+                } else if let (Some(fc), Some(tc)) = (from_center, to_center) {
                     // Draw edge from source to merge junction
                     self.draw_merge_edge(
                         &mut canvas,

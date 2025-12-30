@@ -455,7 +455,7 @@ impl StateRenderer {
         }
 
         // Draw merges (multiple sources to one target)
-        for (_target_id, transitions) in &by_target {
+        for transitions in by_target.values() {
             if transitions.len() > 1 {
                 // Check if any of these are already drawn (part of a split)
                 let undrawn: Vec<_> = transitions
