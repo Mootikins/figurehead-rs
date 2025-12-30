@@ -38,20 +38,13 @@ snapshots-update:
 snapshots:
 	cargo test --test snapshots
 
-# Prepare a release: ensure clean tree, run tests, and dry-run publish
-release-check:
-	git diff --quiet --exit-code
-	cargo test
-	cargo publish -p figurehead --locked --dry-run
-	python -c "from pathlib import Path; import re, subprocess; text=Path('Cargo.toml').read_text(); m=re.search(r'version\\s*=\\s*\"([^\"]+)\"', text); version=m.group(1) if m else 'unknown'; res=subprocess.run(['git','tag',f'v{version}'], capture_output=True, text=True); print('Tag v{version} already exists.' if res.returncode==0 and res.stdout.strip()==f'v{version}' else f'Ready to tag: v{version}')"
+# Release dry-run (patch/minor/major)
+release-dry level="patch":
+	cargo release {{level}}
 
-# Publish the library crate (runs release-check first)
-publish-lib: release-check
-	cargo publish -p figurehead --locked
-
-# Publish the CLI after the library is on crates.io
-publish-cli:
-	cargo publish -p figurehead-cli --locked
+# Release for real (patch/minor/major)
+release level="patch":
+	cargo release {{level}} --execute
 
 # Build WASM module for web examples
 wasm-build:
