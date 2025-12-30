@@ -143,142 +143,114 @@ impl ChumskyFlowchartParser {
             .map(|s| s.trim().to_string())
     }
 
+    /// Parse `:::className` suffix for inline class application
+    fn class_suffix_parser<'src>() -> impl Parser<'src, &'src str, String> + Clone {
+        just(":::")
+            .ignore_then(ident().map(|s: &str| s.to_string()))
+    }
+
     fn node_parser<'src>() -> impl Parser<'src, &'src str, Node> + Clone {
         let node_id = ident()
             .map(|s: &str| s.to_string())
             .labelled("node identifier");
 
         // A[label] - Rectangle
-        let rectangular_node = node_id
+        let rectangular = node_id
+            .clone()
             .then_ignore(just('['))
             .then(Self::label_parser())
             .then_ignore(just(']'))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Rectangle,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Rectangle));
 
         // A(label) - Rounded rectangle / stadium
-        let rounded_node = node_id
+        let rounded = node_id
+            .clone()
             .then_ignore(just('('))
             .then(Self::label_parser())
             .then_ignore(just(')'))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::RoundedRect,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::RoundedRect));
 
         // A{label} - Diamond
-        let diamond_node = node_id
+        let diamond = node_id
+            .clone()
             .then_ignore(just('{'))
             .then(Self::label_parser())
             .then_ignore(just('}'))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Diamond,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Diamond));
 
         // A((label)) - Circle
-        let circle_node = node_id
+        let circle = node_id
+            .clone()
             .then_ignore(just("(("))
             .then(Self::label_parser())
             .then_ignore(just("))"))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Circle,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Circle));
 
         // A[[label]] - Subroutine
-        let subroutine_node = node_id
+        let subroutine = node_id
+            .clone()
             .then_ignore(just("[["))
             .then(Self::label_parser())
             .then_ignore(just("]]"))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Subroutine,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Subroutine));
 
         // A{{label}} - Hexagon
-        let hexagon_node = node_id
+        let hexagon = node_id
+            .clone()
             .then_ignore(just("{{"))
             .then(Self::label_parser())
             .then_ignore(just("}}"))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Hexagon,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Hexagon));
 
         // A[(label)] - Cylinder / database
-        let cylinder_node = node_id
+        let cylinder = node_id
+            .clone()
             .then_ignore(just("[("))
             .then(Self::label_parser())
             .then_ignore(just(")]"))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Cylinder,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Cylinder));
 
         // A[/label/] - Parallelogram (input/output)
-        let parallelogram_node = node_id
+        let parallelogram = node_id
+            .clone()
             .then_ignore(just("[/"))
             .then(Self::label_parser_no_slash())
             .then_ignore(just("/]"))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Parallelogram,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Parallelogram));
 
         // A[/label\] - Trapezoid
-        let trapezoid_node = node_id
+        let trapezoid = node_id
+            .clone()
             .then_ignore(just("[/"))
             .then(Self::label_parser_no_slash())
             .then_ignore(just("\\]"))
-            .map(|(id, label)| Node {
-                id,
-                label,
-                shape: NodeShape::Trapezoid,
-                class: None,
-            });
+            .map(|(id, label)| (id, label, NodeShape::Trapezoid));
 
         // A>label] - Asymmetric (flag)
-        let asymmetric_node = node_id
+        let asymmetric = node_id
             .then_ignore(just('>'))
             .then(Self::label_parser())
             .then_ignore(just(']'))
-            .map(|(id, label)| Node {
+            .map(|(id, label)| (id, label, NodeShape::Asymmetric));
+
+        // Combine all shapes, then optionally parse :::className suffix
+        hexagon
+            .or(cylinder)
+            .or(subroutine)
+            .or(circle)
+            .or(parallelogram)
+            .or(trapezoid)
+            .or(rectangular)
+            .or(rounded)
+            .or(diamond)
+            .or(asymmetric)
+            .then(Self::class_suffix_parser().or_not())
+            .map(|((id, label, shape), class)| Node {
                 id,
                 label,
-                shape: NodeShape::Asymmetric,
-                class: None,
-            });
-
-        // Order matters - try more specific patterns first
-        hexagon_node
-            .or(cylinder_node)
-            .or(subroutine_node)
-            .or(circle_node)
-            .or(parallelogram_node)
-            .or(trapezoid_node)
-            .or(rectangular_node)
-            .or(rounded_node)
-            .or(diamond_node)
-            .or(asymmetric_node)
+                shape,
+                class,
+            })
             .labelled("node definition")
     }
 
@@ -334,20 +306,21 @@ impl ChumskyFlowchartParser {
         ident()
             .map(|s: &str| s.to_string())
             .then(Self::label_suffix().or_not())
-            .map(|(id, shape_info)| {
+            .then(Self::class_suffix_parser().or_not())
+            .map(|((id, shape_info), class)| {
                 if let Some((label, shape)) = shape_info {
                     NodeRef {
                         id,
                         label: Some(label),
                         shape: Some(shape),
-                        class: None,
+                        class,
                     }
                 } else {
                     NodeRef {
                         id,
                         label: None,
                         shape: None,
-                        class: None,
+                        class,
                     }
                 }
             })
@@ -1100,5 +1073,97 @@ mod tests {
         // Check resolved style for A combines class definition
         let resolved = db.resolve_node_style("A").unwrap();
         assert_eq!(resolved.fill, Some(Color::Hex("#f00".to_string())));
+    }
+
+    #[test]
+    fn test_node_with_class_suffix() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Node with :::className suffix
+        let stmt = parser.parse_statement("A[Start]:::highlight").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "A");
+            assert_eq!(node.label, "Start");
+            assert_eq!(node.shape, NodeShape::Rectangle);
+            assert_eq!(node.class, Some("highlight".to_string()));
+        } else {
+            panic!("Expected node statement");
+        }
+
+        // Rounded node with class
+        let stmt = parser.parse_statement("B(Label):::primary").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "B");
+            assert_eq!(node.class, Some("primary".to_string()));
+        } else {
+            panic!("Expected node statement");
+        }
+
+        // Diamond with class
+        let stmt = parser.parse_statement("C{Decision}:::warning").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "C");
+            assert_eq!(node.shape, NodeShape::Diamond);
+            assert_eq!(node.class, Some("warning".to_string()));
+        } else {
+            panic!("Expected node statement");
+        }
+
+        // Node without class still works
+        let stmt = parser.parse_statement("D[NoClass]").unwrap();
+        if let Statement::Node(node) = stmt {
+            assert_eq!(node.id, "D");
+            assert_eq!(node.class, None);
+        } else {
+            panic!("Expected node statement");
+        }
+    }
+
+    #[test]
+    fn test_edge_with_class_suffix_on_nodes() {
+        let parser = ChumskyFlowchartParser::new();
+
+        // Edge with class on target node
+        let stmt = parser.parse_statement("A --> B[End]:::done").unwrap();
+        if let Statement::Edge(edge) = stmt {
+            assert_eq!(edge.from, "A");
+            assert_eq!(edge.to, "B");
+            assert_eq!(edge.to_ref.class, Some("done".to_string()));
+            assert_eq!(edge.from_ref.class, None);
+        } else {
+            panic!("Expected edge statement");
+        }
+
+        // Edge with class on source node (no shape, just ID + class)
+        let stmt = parser.parse_statement("A:::start --> B").unwrap();
+        if let Statement::Edge(edge) = stmt {
+            assert_eq!(edge.from, "A");
+            assert_eq!(edge.from_ref.class, Some("start".to_string()));
+        } else {
+            panic!("Expected edge statement");
+        }
+    }
+
+    #[test]
+    fn test_inline_class_integration() {
+        use crate::core::{Color, Database, Parser};
+
+        let input = r#"
+            graph TD
+            classDef green fill:#0f0
+            A[Start]:::green --> B[End]
+        "#;
+
+        let parser = super::super::parser::FlowchartParser::new();
+        let mut db = super::super::database::FlowchartDatabase::new();
+        parser.parse(input, &mut db).unwrap();
+
+        // Check class was applied via inline syntax
+        let node_a = db.get_node("A").unwrap();
+        assert!(node_a.classes.contains(&"green".to_string()));
+
+        // Check resolved style for A uses class definition
+        let resolved = db.resolve_node_style("A").unwrap();
+        assert_eq!(resolved.fill, Some(Color::Hex("#0f0".to_string())));
     }
 }

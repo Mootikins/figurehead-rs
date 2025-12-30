@@ -387,12 +387,20 @@ fn collect_node_ids(statements: &[Statement]) -> Vec<String> {
 /// Ensure a node exists, using shape info from the reference if available
 fn ensure_node_from_ref(database: &mut FlowchartDatabase, node_ref: &NodeRef) -> Result<()> {
     if database.has_node(&node_ref.id) {
+        // Node exists - still apply class if specified in the reference
+        if let Some(class) = &node_ref.class {
+            database.apply_class(&node_ref.id, class);
+        }
         return Ok(());
     }
 
     let label = node_ref.label.as_deref().unwrap_or(&node_ref.id);
     let shape = node_ref.shape.unwrap_or_default();
-    database.add_node(NodeData::with_shape(&node_ref.id, label, shape))?;
+    let mut node_data = NodeData::with_shape(&node_ref.id, label, shape);
+    if let Some(class) = &node_ref.class {
+        node_data.add_class(class);
+    }
+    database.add_node(node_data)?;
     Ok(())
 }
 

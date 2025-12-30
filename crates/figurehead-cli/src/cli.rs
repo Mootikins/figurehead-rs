@@ -4,6 +4,7 @@
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use crossterm::style::{Color, Stylize};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
@@ -106,6 +107,14 @@ pub enum Commands {
             default_value_t = DiamondChoice::Box
         )]
         diamond: DiamondChoice,
+
+        /// When to use colors in output
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = ColorChoice::Auto
+        )]
+        color: ColorChoice,
     },
 
     /// Detect diagram type in input
@@ -172,6 +181,18 @@ impl From<DiamondChoice> for DiamondStyle {
     }
 }
 
+/// When to colorize output
+#[derive(Copy, Clone, Debug, ValueEnum, PartialEq, Eq, Default)]
+pub enum ColorChoice {
+    /// Use colors if output is a terminal and NO_COLOR is not set
+    #[default]
+    Auto,
+    /// Always use colors
+    Always,
+    /// Never use colors
+    Never,
+}
+
 /// Main CLI application
 pub struct FigureheadApp {
     orchestrator: Orchestrator,
@@ -222,7 +243,8 @@ impl FigureheadApp {
                 skip_detection,
                 style,
                 diamond,
-            } => self.convert_command(input, output, skip_detection, style, diamond, cli.verbose),
+                color,
+            } => self.convert_command(input, output, skip_detection, style, diamond, color, cli.verbose),
             Commands::Detect { input } => self.detect_command(input, cli.verbose),
             Commands::Types { json } => self.types_command(json, cli.verbose),
             Commands::Validate { input } => self.validate_command(input, cli.verbose),
@@ -237,10 +259,11 @@ impl FigureheadApp {
         skip_detection: bool,
         style: StyleChoice,
         diamond: DiamondChoice,
+        color: ColorChoice,
         verbose: bool,
     ) -> Result<()> {
         // Read input
-        let content = self.read_input(input)?;
+        let content = self.read_input(input.clone())?;
 
         if verbose {
             eprintln!("Read {} bytes of input", content.len());
@@ -264,12 +287,40 @@ impl FigureheadApp {
                 if verbose {
                     eprintln!("Successfully converted diagram to ASCII");
                 }
-                self.write_output(output, &ascii_output)?;
+                // Apply colors if enabled
+                let final_output = if self.should_colorize(&output, color) {
+                    colorize_output(&ascii_output)
+                } else {
+                    ascii_output
+                };
+                self.write_output(output, &final_output)?;
                 Ok(())
             }
             Err(e) => {
                 eprintln!("Error: {}", e);
                 Err(e)
+            }
+        }
+    }
+
+    /// Determine if we should colorize the output based on color choice and output destination
+    fn should_colorize(&self, output: &Option<PathBuf>, color: ColorChoice) -> bool {
+        match color {
+            ColorChoice::Always => true,
+            ColorChoice::Never => false,
+            ColorChoice::Auto => {
+                // Check NO_COLOR environment variable
+                if std::env::var("NO_COLOR").is_ok() {
+                    return false;
+                }
+                // Only colorize if outputting to stdout and it's a terminal
+                match output {
+                    None => crossterm::tty::IsTty::is_tty(&std::io::stdout()),
+                    Some(ref p) if p.to_str() == Some("-") => {
+                        crossterm::tty::IsTty::is_tty(&std::io::stdout())
+                    }
+                    Some(_) => false, // Writing to file, no colors
+                }
             }
         }
     }
@@ -434,6 +485,83 @@ impl Default for FigureheadApp {
     }
 }
 
+/// Colorize ASCII diagram output using ANSI escape codes
+///
+/// Applies colors to different diagram elements:
+/// - Box-drawing corners and edges: Cyan
+/// - Arrows and edge markers: Yellow
+/// - Diamond markers: Magenta
+/// - Labels: Default (white/terminal color)
+fn colorize_output(input: &str) -> String {
+    let mut result = String::with_capacity(input.len() * 2); // Extra space for ANSI codes
+
+    for line in input.lines() {
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            let colored = match c {
+                // Box-drawing corners and lines (Unicode)
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '─' | '│' |
+                '╔' | '╗' | '╚' | '╝' | '╠' | '╣' | '╦' | '╩' | '╬' | '═' | '║' |
+                '╭' | '╮' | '╯' | '╰' | '╒' | '╕' | '╘' | '╛' | '╓' | '╖' | '╙' | '╜' => {
+                    format!("{}", c.to_string().with(Color::Cyan))
+                }
+                // ASCII box characters
+                '+' | '-' | '|' => {
+                    // Check context to avoid coloring hyphens in labels
+                    if is_box_char_context(line, c) {
+                        format!("{}", c.to_string().with(Color::Cyan))
+                    } else {
+                        c.to_string()
+                    }
+                }
+                // Arrow heads
+                '>' | 'v' | '^' | '<' => {
+                    format!("{}", c.to_string().with(Color::Yellow))
+                }
+                // Diamond markers
+                '◆' | '◇' => {
+                    format!("{}", c.to_string().with(Color::Magenta))
+                }
+                // Circle markers (terminal states)
+                '●' | '○' | '◉' => {
+                    format!("{}", c.to_string().with(Color::Green))
+                }
+                // Keep other characters uncolored
+                _ => c.to_string(),
+            };
+            result.push_str(&colored);
+        }
+        result.push('\n');
+    }
+
+    // Remove trailing newline to match input format
+    if !input.ends_with('\n') && result.ends_with('\n') {
+        result.pop();
+    }
+
+    result
+}
+
+/// Check if a character is likely part of box drawing vs text content
+fn is_box_char_context(line: &str, c: char) -> bool {
+    match c {
+        '+' => {
+            // '+' is likely a box corner if surrounded by box chars
+            line.contains("--") || line.contains("+-") || line.contains("-+")
+        }
+        '-' => {
+            // '-' is likely a box line if it appears as ---
+            line.contains("---") || line.contains("+--") || line.contains("--+")
+        }
+        '|' => {
+            // '|' as first non-space or preceded by box chars is likely a box edge
+            let trimmed = line.trim_start();
+            trimmed.starts_with('|') || line.contains("| ") || line.contains(" |")
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -463,12 +591,14 @@ mod tests {
                 skip_detection,
                 style,
                 diamond,
+                color,
             } => {
                 assert_eq!(input.unwrap().to_string_lossy(), "test.mmd");
                 assert_eq!(output.unwrap().to_string_lossy(), "output.txt");
                 assert!(!skip_detection);
                 assert_eq!(style, StyleChoice::Ascii);
                 assert_eq!(diamond, DiamondChoice::Box); // default
+                assert_eq!(color, ColorChoice::Auto); // default
             }
             _ => panic!("Expected Convert command"),
         }
