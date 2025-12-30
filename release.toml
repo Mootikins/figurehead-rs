@@ -1,0 +1,11 @@
+# cargo-release configuration
+# https://github.com/crate-ci/cargo-release
+
+allow-branch = ["master"]
+sign-commit = false
+sign-tag = false
+push = true
+publish = true
+tag = true
+tag-prefix = "v"
+pre-release-commit-message = "chore: release {{version}}"
