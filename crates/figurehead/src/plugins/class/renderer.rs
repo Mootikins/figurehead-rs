@@ -96,8 +96,9 @@ impl ClassRenderer {
         canvas.set(x + w - 1, cy, TOP_RIGHT);
         cy += 1;
 
-        // Class name (centered)
+        // Class name (centered) - clear content area first
         canvas.set(x, cy, VERTICAL);
+        canvas.draw_horizontal(x + 1, cy, w - 2, ' ');  // Clear content area
         canvas.draw_text_centered(x + 1, cy, w - 2, &class.name);
         canvas.set(x + w - 1, cy, VERTICAL);
         cy += 1;
@@ -113,6 +114,7 @@ impl ClassRenderer {
             // Attributes
             for attr in &class.attributes {
                 canvas.set(x, cy, VERTICAL);
+                canvas.draw_horizontal(x + 1, cy, w - 2, ' ');  // Clear content area
                 canvas.draw_text(x + 2, cy, attr);
                 canvas.set(x + w - 1, cy, VERTICAL);
                 cy += 1;
@@ -130,6 +132,7 @@ impl ClassRenderer {
             // Methods
             for method in &class.methods {
                 canvas.set(x, cy, VERTICAL);
+                canvas.draw_horizontal(x + 1, cy, w - 2, ' ');  // Clear content area
                 canvas.draw_text(x + 2, cy, method);
                 canvas.set(x + w - 1, cy, VERTICAL);
                 cy += 1;
@@ -142,47 +145,94 @@ impl ClassRenderer {
         canvas.set(x + w - 1, cy, BOTTOM_RIGHT);
     }
 
-    /// Draw a relationship arrow between classes
-    fn draw_relationship(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
-        // For horizontal relationships (classes on same row)
-        // Draw: from_class ──────▷ to_class
-        //
-        // Arrow head characters based on relationship type
-        let (arrow_char, line_char) = match rel.kind {
-            RelationshipKind::Inheritance => ('◁', '─'),   // <|-- hollow triangle
-            RelationshipKind::Realization => ('◁', '╌'),   // ..|> dashed hollow
-            RelationshipKind::Composition => ('◆', '─'),   // *-- filled diamond
-            RelationshipKind::Aggregation => ('◇', '─'),   // o-- hollow diamond
-            RelationshipKind::Association => ('▷', '─'),   // --> arrow
-            RelationshipKind::Dependency => ('▷', '╌'),    // ..> dashed arrow
-            RelationshipKind::Link => ('─', '─'),          // -- plain
-            RelationshipKind::DashedLink => ('╌', '╌'),    // .. dashed
-        };
-
-        let from_x = rel.from_x;
-        let to_x = rel.to_x;
-        let y = rel.from_y; // Draw at bottom of from class
-
-        // Determine direction
-        if from_x < to_x {
-            // Left to right
-            for x in (from_x + 1)..to_x {
-                canvas.set(x, y, line_char);
-            }
-            canvas.set(to_x, y, arrow_char);
-        } else if from_x > to_x {
-            // Right to left
-            for x in (to_x + 1)..from_x {
-                canvas.set(x, y, line_char);
-            }
-            canvas.set(to_x, y, arrow_char);
+    /// Get line character for a relationship type
+    fn line_char_for(kind: RelationshipKind) -> char {
+        match kind {
+            RelationshipKind::Inheritance => '─',
+            RelationshipKind::Realization => '╌',
+            RelationshipKind::Composition => '─',
+            RelationshipKind::Aggregation => '─',
+            RelationshipKind::Association => '─',
+            RelationshipKind::Dependency => '╌',
+            RelationshipKind::Link => '─',
+            RelationshipKind::DashedLink => '╌',
         }
+    }
 
-        // Draw label if present
+    /// Get arrow head character for a relationship type
+    fn arrow_char_for(kind: RelationshipKind) -> char {
+        match kind {
+            RelationshipKind::Inheritance => '◁',
+            RelationshipKind::Realization => '◁',
+            RelationshipKind::Composition => '◆',
+            RelationshipKind::Aggregation => '◇',
+            RelationshipKind::Association => '▷',
+            RelationshipKind::Dependency => '▷',
+            RelationshipKind::Link => '─',
+            RelationshipKind::DashedLink => '╌',
+        }
+    }
+
+    /// Draw relationship line (without arrow head)
+    fn draw_relationship_line(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
+        let line_char = Self::line_char_for(rel.kind);
+        let is_horizontal = rel.from_y == rel.to_y;
+
+        if is_horizontal {
+            let y = rel.from_y;
+            let (left_x, right_x) = if rel.from_x < rel.to_x {
+                (rel.from_x, rel.to_x)
+            } else {
+                (rel.to_x, rel.from_x)
+            };
+
+            for x in left_x..right_x {
+                canvas.set(x, y, line_char);
+            }
+        } else {
+            let x = rel.from_x;
+            let (top_y, bottom_y) = if rel.from_y < rel.to_y {
+                (rel.from_y, rel.to_y)
+            } else {
+                (rel.to_y, rel.from_y)
+            };
+
+            for y in top_y..bottom_y {
+                canvas.set(x, y, '│');
+            }
+        }
+    }
+
+    /// Draw relationship arrow head only
+    fn draw_relationship_arrow(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
+        let arrow_char = Self::arrow_char_for(rel.kind);
+        let is_horizontal = rel.from_y == rel.to_y;
+
+        if is_horizontal {
+            let y = rel.from_y;
+            canvas.set(rel.to_x.saturating_sub(1), y, arrow_char);
+        } else {
+            let x = rel.from_x;
+            canvas.set(x, rel.to_y.saturating_sub(1), if rel.to_y > rel.from_y { '▽' } else { '△' });
+        }
+    }
+
+    /// Draw relationship label (drawn last so it's on top)
+    fn draw_relationship_label(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
         if let Some(ref label) = rel.label {
-            let mid_x = (from_x + to_x) / 2;
-            let label_start = mid_x.saturating_sub(label.len() / 2);
-            canvas.draw_text(label_start, y.saturating_sub(1), label);
+            let is_horizontal = rel.from_y == rel.to_y;
+
+            if is_horizontal {
+                let y = rel.from_y;
+                let (left_x, right_x) = if rel.from_x < rel.to_x {
+                    (rel.from_x, rel.to_x)
+                } else {
+                    (rel.to_x, rel.from_x)
+                };
+                let mid_x = (left_x + right_x) / 2;
+                let label_start = mid_x.saturating_sub(label.len() / 2);
+                canvas.draw_text(label_start, y.saturating_sub(1), label);
+            }
         }
     }
 
@@ -196,14 +246,24 @@ impl ClassRenderer {
         let extra_height = if layout.relationships.is_empty() { 0 } else { 2 };
         let mut canvas = Canvas::new(layout.width + 1, layout.height + extra_height + 1);
 
-        // Draw classes first
+        // Draw relationship lines first
+        for rel in &layout.relationships {
+            self.draw_relationship_line(&mut canvas, rel);
+        }
+
+        // Draw arrow heads (before classes, so they appear in gaps)
+        for rel in &layout.relationships {
+            self.draw_relationship_arrow(&mut canvas, rel);
+        }
+
+        // Draw classes on top (overwrites any overlapping lines)
         for class in &layout.classes {
             self.draw_class(&mut canvas, class);
         }
 
-        // Draw relationships on top
+        // Draw relationship labels last (so they're visible on top)
         for rel in &layout.relationships {
-            self.draw_relationship(&mut canvas, rel);
+            self.draw_relationship_label(&mut canvas, rel);
         }
 
         Ok(canvas.to_string())

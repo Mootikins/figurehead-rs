@@ -223,11 +223,20 @@ impl ClassLayoutAlgorithm {
             let to_class = positioned.iter().find(|c| c.name == rel.to);
 
             if let (Some(from), Some(to)) = (from_class, to_class) {
-                // Calculate connection points (center-bottom of from, center-top of to)
-                let from_x = from.x + from.width / 2;
-                let from_y = from.y + from.height;
-                let to_x = to.x + to.width / 2;
-                let to_y = to.y;
+                // Determine if classes are on same row (horizontal) or different rows (vertical)
+                let same_row = from.y == to.y;
+
+                let (from_x, from_y, to_x, to_y) = if same_row {
+                    // Horizontal: connect right edge of left class to left edge of right class
+                    let (left, right) = if from.x < to.x { (from, to) } else { (to, from) };
+                    let y = left.y + left.height / 2; // Middle of class height
+                    (left.x + left.width, y, right.x, y)
+                } else {
+                    // Vertical: connect bottom of top class to top of bottom class
+                    let (top, bottom) = if from.y < to.y { (from, to) } else { (to, from) };
+                    let x = top.x + top.width / 2;
+                    (x, top.y + top.height, x, bottom.y)
+                };
 
                 positioned_relationships.push(PositionedRelationship {
                     from_class: rel.from.clone(),
@@ -401,14 +410,14 @@ mod tests {
         let result = layout.layout(&db).unwrap();
 
         let rel = &result.relationships[0];
-        // From should be at bottom-center of A, to should be at top-center of B
         let class_a = result.classes.iter().find(|c| c.name == "A").unwrap();
         let class_b = result.classes.iter().find(|c| c.name == "B").unwrap();
 
-        assert_eq!(rel.from_x, class_a.x + class_a.width / 2);
-        assert_eq!(rel.from_y, class_a.y + class_a.height);
-        assert_eq!(rel.to_x, class_b.x + class_b.width / 2);
-        assert_eq!(rel.to_y, class_b.y);
+        // Same row: horizontal connection from right edge of A to left edge of B
+        assert_eq!(rel.from_x, class_a.x + class_a.width);
+        assert_eq!(rel.from_y, class_a.y + class_a.height / 2);
+        assert_eq!(rel.to_x, class_b.x);
+        assert_eq!(rel.to_y, class_b.y + class_b.height / 2);
     }
 
     #[test]
