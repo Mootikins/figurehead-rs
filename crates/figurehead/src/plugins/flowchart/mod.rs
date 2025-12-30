@@ -10,6 +10,7 @@ mod chumsky_parser;
 mod database;
 mod detector;
 mod layout;
+mod ordering;
 mod parser;
 mod renderer;
 mod whitespace;

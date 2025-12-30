@@ -259,14 +259,20 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             layer_nodes[layer].push(node_id);
         }
 
-        // Sort nodes within each layer for determinism
+        // Initial sort for determinism, then apply barycenter ordering
         for layer in &mut layer_nodes {
             layer.sort();
         }
+
+        // Apply barycenter ordering to minimize edge crossings
+        let crossing_count =
+            super::ordering::order_layers_barycenter(database, &mut layer_nodes, 4);
+
         debug!(
             max_layer,
             layer_count = layer_nodes.len(),
-            "Assigned nodes to layers"
+            crossing_count,
+            "Assigned nodes to layers with barycenter ordering"
         );
         drop(_layer_enter);
 

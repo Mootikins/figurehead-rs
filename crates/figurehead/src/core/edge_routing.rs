@@ -139,7 +139,14 @@ impl EdgeRouter {
             Direction::TopDown | Direction::BottomUp => {
                 // Draw vertical line
                 let (start_y, end_y) = if from_y < to_y {
-                    (from_y, if with_arrow { to_y.saturating_sub(1) } else { to_y })
+                    (
+                        from_y,
+                        if with_arrow {
+                            to_y.saturating_sub(1)
+                        } else {
+                            to_y
+                        },
+                    )
                 } else {
                     (if with_arrow { to_y + 1 } else { to_y }, from_y)
                 };
@@ -156,7 +163,14 @@ impl EdgeRouter {
             Direction::LeftRight | Direction::RightLeft => {
                 // Draw horizontal line
                 let (start_x, end_x) = if from_x < to_x {
-                    (from_x, if with_arrow { to_x.saturating_sub(1) } else { to_x })
+                    (
+                        from_x,
+                        if with_arrow {
+                            to_x.saturating_sub(1)
+                        } else {
+                            to_x
+                        },
+                    )
                 } else {
                     (if with_arrow { to_x + 1 } else { to_x }, from_x)
                 };
@@ -233,7 +247,11 @@ impl EdgeRouter {
         for &(tx, ty) in targets {
             if tx == from_x {
                 // Target is directly below source - continue the line below junction
-                let end_y = if with_arrows { ty.saturating_sub(1) } else { ty };
+                let end_y = if with_arrows {
+                    ty.saturating_sub(1)
+                } else {
+                    ty
+                };
                 if junction_y + 1 <= end_y {
                     self.draw_vertical(canvas, tx, junction_y + 1, end_y);
                 }
@@ -247,7 +265,11 @@ impl EdgeRouter {
                 canvas.set_char(tx, junction_y, corner);
 
                 // Draw vertical line to target
-                let end_y = if with_arrows { ty.saturating_sub(1) } else { ty };
+                let end_y = if with_arrows {
+                    ty.saturating_sub(1)
+                } else {
+                    ty
+                };
                 self.draw_vertical(canvas, tx, junction_y + 1, end_y);
             }
 

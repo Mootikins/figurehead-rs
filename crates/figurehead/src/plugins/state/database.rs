@@ -194,7 +194,10 @@ mod tests {
         // [*] as source should become [*]_start
         assert!(db.has_start_terminal());
         assert!(db.get_node(START_TERMINAL).is_some());
-        assert_eq!(db.get_node(START_TERMINAL).unwrap().shape, NodeShape::Terminal);
+        assert_eq!(
+            db.get_node(START_TERMINAL).unwrap().shape,
+            NodeShape::Terminal
+        );
     }
 
     #[test]
@@ -205,7 +208,10 @@ mod tests {
         // [*] as target should become [*]_end
         assert!(db.has_end_terminal());
         assert!(db.get_node(END_TERMINAL).is_some());
-        assert_eq!(db.get_node(END_TERMINAL).unwrap().shape, NodeShape::Terminal);
+        assert_eq!(
+            db.get_node(END_TERMINAL).unwrap().shape,
+            NodeShape::Terminal
+        );
     }
 
     #[test]

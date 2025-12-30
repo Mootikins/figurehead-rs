@@ -3,7 +3,7 @@
 //! Renders state diagrams as ASCII art.
 
 use super::database::{StateDatabase, START_TERMINAL};
-use super::layout::{StateLayoutAlgorithm, StateLayoutResult, PositionedTransition};
+use super::layout::{PositionedTransition, StateLayoutAlgorithm, StateLayoutResult};
 use crate::core::{AsciiCanvas, CharacterSet, NodeShape, Renderer};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -71,7 +71,14 @@ impl StateRenderer {
     }
 
     /// Draw a terminal state (start/end circle)
-    fn draw_terminal(&self, canvas: &mut AsciiCanvas, x: usize, y: usize, width: usize, is_start: bool) {
+    fn draw_terminal(
+        &self,
+        canvas: &mut AsciiCanvas,
+        x: usize,
+        y: usize,
+        width: usize,
+        is_start: bool,
+    ) {
         let center_x = x + width / 2;
 
         if self.is_unicode() {
@@ -168,7 +175,11 @@ impl StateRenderer {
 
             // Corner at source x
             let corner1 = if self.is_unicode() {
-                if to_x > from_x { '└' } else { '┘' }
+                if to_x > from_x {
+                    '└'
+                } else {
+                    '┘'
+                }
             } else {
                 '+'
             };
@@ -186,7 +197,11 @@ impl StateRenderer {
 
             // Corner at target x
             let corner2 = if self.is_unicode() {
-                if to_x > from_x { '┐' } else { '┌' }
+                if to_x > from_x {
+                    '┐'
+                } else {
+                    '┌'
+                }
             } else {
                 '+'
             };
@@ -247,11 +262,11 @@ impl StateRenderer {
         // Use ┴ since line comes from ABOVE and goes LEFT/RIGHT (no DOWN at this point)
         let junction_char = if self.is_unicode() {
             if from_x <= min_x {
-                '└'  // Source at left edge
+                '└' // Source at left edge
             } else if from_x >= max_x {
-                '┘'  // Source at right edge
+                '┘' // Source at right edge
             } else {
-                '┴'  // Source in middle - connects UP, LEFT, RIGHT
+                '┴' // Source in middle - connects UP, LEFT, RIGHT
             }
         } else {
             '+'
@@ -337,7 +352,11 @@ impl StateRenderer {
         // Draw horizontal bar
         for x in min_x..=max_x {
             // Don't overwrite corners
-            let current = canvas.grid.get(junction_y).and_then(|row| row.get(x)).copied();
+            let current = canvas
+                .grid
+                .get(junction_y)
+                .and_then(|row| row.get(x))
+                .copied();
             if current == Some(' ') || current == Some(h_line) {
                 canvas.set_char(x, junction_y, h_line);
             }
@@ -347,11 +366,11 @@ impl StateRenderer {
         // Use ┬ since line goes DOWN from the bar
         let junction_char = if self.is_unicode() {
             if to_x <= min_x {
-                '└'  // Target at left edge
+                '└' // Target at left edge
             } else if to_x >= max_x {
-                '┘'  // Target at right edge
+                '┘' // Target at right edge
             } else {
-                '┬'  // Target in middle - line goes DOWN
+                '┬' // Target in middle - line goes DOWN
             }
         } else {
             '+'
@@ -402,13 +421,19 @@ impl StateRenderer {
         // Group transitions by source for split detection
         let mut by_source: HashMap<String, Vec<&PositionedTransition>> = HashMap::new();
         for trans in &layout.transitions {
-            by_source.entry(trans.from_id.clone()).or_default().push(trans);
+            by_source
+                .entry(trans.from_id.clone())
+                .or_default()
+                .push(trans);
         }
 
         // Group transitions by target for merge detection
         let mut by_target: HashMap<String, Vec<&PositionedTransition>> = HashMap::new();
         for trans in &layout.transitions {
-            by_target.entry(trans.to_id.clone()).or_default().push(trans);
+            by_target
+                .entry(trans.to_id.clone())
+                .or_default()
+                .push(trans);
         }
 
         // Track which transitions we've already drawn
@@ -439,11 +464,14 @@ impl StateRenderer {
                     .collect();
                 if undrawn.len() > 1 {
                     let first = undrawn[0];
-                    let sources: Vec<(usize, usize)> = undrawn
-                        .iter()
-                        .map(|t| (t.from_x, t.from_y))
-                        .collect();
-                    self.draw_merge_edges(&mut canvas, &sources, first.to_x, first.to_y.saturating_sub(1));
+                    let sources: Vec<(usize, usize)> =
+                        undrawn.iter().map(|t| (t.from_x, t.from_y)).collect();
+                    self.draw_merge_edges(
+                        &mut canvas,
+                        &sources,
+                        first.to_x,
+                        first.to_y.saturating_sub(1),
+                    );
                     for t in undrawn {
                         drawn.insert((&t.from_id, &t.to_id));
                     }
@@ -558,9 +586,12 @@ mod tests {
     fn test_render_branching() {
         let mut db = StateDatabase::new();
         db.add_transition(EdgeData::new("[*]", "Idle")).unwrap();
-        db.add_transition(EdgeData::new("Idle", "Processing")).unwrap();
-        db.add_transition(EdgeData::new("Processing", "Success")).unwrap();
-        db.add_transition(EdgeData::new("Processing", "Failed")).unwrap();
+        db.add_transition(EdgeData::new("Idle", "Processing"))
+            .unwrap();
+        db.add_transition(EdgeData::new("Processing", "Success"))
+            .unwrap();
+        db.add_transition(EdgeData::new("Processing", "Failed"))
+            .unwrap();
         db.add_transition(EdgeData::new("Success", "[*]")).unwrap();
         db.add_transition(EdgeData::new("Failed", "[*]")).unwrap();
 

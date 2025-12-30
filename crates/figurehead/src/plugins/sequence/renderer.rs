@@ -29,10 +29,21 @@ impl SequenceRenderer {
     }
 
     /// Draw a horizontal line with style options
-    fn draw_styled_horizontal(&self, canvas: &mut AsciiCanvas, x1: usize, x2: usize, y: usize, solid: bool) {
+    fn draw_styled_horizontal(
+        &self,
+        canvas: &mut AsciiCanvas,
+        x1: usize,
+        x2: usize,
+        y: usize,
+        solid: bool,
+    ) {
         let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
         let line_char = if solid {
-            if self.is_unicode() { '─' } else { '-' }
+            if self.is_unicode() {
+                '─'
+            } else {
+                '-'
+            }
         } else if self.is_unicode() {
             '╌'
         } else {
@@ -56,7 +67,14 @@ impl SequenceRenderer {
     }
 
     /// Draw a participant header box
-    fn draw_participant(&self, canvas: &mut AsciiCanvas, x: usize, y: usize, label: &str, width: usize) {
+    fn draw_participant(
+        &self,
+        canvas: &mut AsciiCanvas,
+        x: usize,
+        y: usize,
+        label: &str,
+        width: usize,
+    ) {
         let unicode = self.is_unicode();
 
         // Draw box around label

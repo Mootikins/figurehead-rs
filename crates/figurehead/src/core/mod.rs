@@ -18,9 +18,9 @@ mod types;
 
 pub use canvas::*;
 pub use database::*;
-pub use edge_routing::*;
 pub use detector::*;
 pub use diagram::*;
+pub use edge_routing::*;
 pub use error::*;
 pub use layout::*;
 pub use logging::*;

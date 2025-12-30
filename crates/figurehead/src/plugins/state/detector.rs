@@ -58,13 +58,7 @@ impl Detector for StateDetector {
     }
 
     fn patterns(&self) -> Vec<&'static str> {
-        vec![
-            "stateDiagram",
-            "stateDiagram-v2",
-            "[*]",
-            "-->",
-            "state ",
-        ]
+        vec!["stateDiagram", "stateDiagram-v2", "[*]", "-->", "state "]
     }
 }
 
@@ -91,7 +85,10 @@ mod tests {
         let detector = StateDetector::new();
 
         // Full keyword = 1.0
-        assert_eq!(detector.confidence("stateDiagram-v2\n    [*] --> Idle"), 1.0);
+        assert_eq!(
+            detector.confidence("stateDiagram-v2\n    [*] --> Idle"),
+            1.0
+        );
 
         // Terminal + transition = 0.8
         assert!(detector.confidence("[*] --> Idle") >= 0.8);

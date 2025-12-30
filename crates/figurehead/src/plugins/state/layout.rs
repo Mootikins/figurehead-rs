@@ -213,10 +213,7 @@ impl StateLayoutAlgorithm {
                     rank,
                 };
 
-                state_positions.insert(
-                    state.id.clone(),
-                    (current_x, current_y + y_offset, w, h),
-                );
+                state_positions.insert(state.id.clone(), (current_x, current_y + y_offset, w, h));
                 positioned_states.push(pos_state);
 
                 current_x += w + self.h_spacing;
@@ -357,9 +354,12 @@ mod tests {
     fn test_branching_layout() {
         let mut db = StateDatabase::new();
         db.add_transition(EdgeData::new("[*]", "Idle")).unwrap();
-        db.add_transition(EdgeData::new("Idle", "Processing")).unwrap();
-        db.add_transition(EdgeData::new("Processing", "Success")).unwrap();
-        db.add_transition(EdgeData::new("Processing", "Failed")).unwrap();
+        db.add_transition(EdgeData::new("Idle", "Processing"))
+            .unwrap();
+        db.add_transition(EdgeData::new("Processing", "Success"))
+            .unwrap();
+        db.add_transition(EdgeData::new("Processing", "Failed"))
+            .unwrap();
         db.add_transition(EdgeData::new("Success", "[*]")).unwrap();
         db.add_transition(EdgeData::new("Failed", "[*]")).unwrap();
 
@@ -367,7 +367,11 @@ mod tests {
         let result = algo.layout(&db).unwrap();
 
         // Find the start terminal
-        let start = result.states.iter().find(|s| s.id == START_TERMINAL).unwrap();
+        let start = result
+            .states
+            .iter()
+            .find(|s| s.id == START_TERMINAL)
+            .unwrap();
 
         // The start terminal should be horizontally centered
         // It should NOT be at x=0 for a branching diagram

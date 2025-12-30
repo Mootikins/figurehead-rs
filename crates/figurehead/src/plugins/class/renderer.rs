@@ -20,7 +20,14 @@ impl ClassRenderer {
     }
 
     /// Draw text centered within a given width
-    fn draw_text_in_box(&self, canvas: &mut AsciiCanvas, x: usize, y: usize, width: usize, text: &str) {
+    fn draw_text_in_box(
+        &self,
+        canvas: &mut AsciiCanvas,
+        x: usize,
+        y: usize,
+        width: usize,
+        text: &str,
+    ) {
         let text_width = UnicodeWidthStr::width(text);
         let padding = (width.saturating_sub(text_width)) / 2;
         canvas.draw_text(x + padding, y, text);
