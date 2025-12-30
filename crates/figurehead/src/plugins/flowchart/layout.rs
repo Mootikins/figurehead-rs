@@ -73,11 +73,11 @@ pub struct LayoutConfig {
 impl Default for LayoutConfig {
     fn default() -> Self {
         Self {
-            node_sep: 1,      // was 4: horizontal gap between nodes in same layer
-            rank_sep: 4,      // gap between layers (need 4 for visible edge lines in LR splits)
+            node_sep: 1, // was 4: horizontal gap between nodes in same layer
+            rank_sep: 4, // gap between layers (need 4 for visible edge lines in LR splits)
             min_node_width: 5,
             min_node_height: 3,
-            padding: 1,       // was 2: canvas edge padding
+            padding: 1,          // was 2: canvas edge padding
             max_label_width: 30, // Wrap labels longer than 30 chars
             diamond_style: crate::core::DiamondStyle::Box,
         }
@@ -163,7 +163,7 @@ impl FlowchartLayoutAlgorithm {
                 // Diamond height depends on the diamond style
                 use crate::core::DiamondStyle;
                 let height_extra = match self.config.diamond_style {
-                    DiamondStyle::Box => 0,    // 3 lines total
+                    DiamondStyle::Box => 0,     // 3 lines total
                     DiamondStyle::Inline => -2, // 1 line total (will be clamped to min)
                     DiamondStyle::Tall => 2,    // 5 lines total
                 };
@@ -263,7 +263,11 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         for layer in &mut layer_nodes {
             layer.sort();
         }
-        debug!(max_layer, layer_count = layer_nodes.len(), "Assigned nodes to layers");
+        debug!(
+            max_layer,
+            layer_count = layer_nodes.len(),
+            "Assigned nodes to layers"
+        );
         drop(_layer_enter);
 
         // Normalize node widths within layers for LR/RL direction (for alignment)
@@ -276,13 +280,17 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 // Normalize widths within layers
                 let mut layer_max_widths: HashMap<usize, usize> = HashMap::new();
                 for &node_id in &sorted {
-                    if let (Some(&layer), Some(&(width, _))) = (layers.get(node_id), node_sizes.get(node_id)) {
+                    if let (Some(&layer), Some(&(width, _))) =
+                        (layers.get(node_id), node_sizes.get(node_id))
+                    {
                         let max = layer_max_widths.entry(layer).or_insert(0);
                         *max = (*max).max(width);
                     }
                 }
                 for &node_id in &sorted {
-                    if let (Some(&layer), Some((_, height))) = (layers.get(node_id), node_sizes.get(node_id).copied()) {
+                    if let (Some(&layer), Some((_, height))) =
+                        (layers.get(node_id), node_sizes.get(node_id).copied())
+                    {
                         if let Some(&max_width) = layer_max_widths.get(&layer) {
                             node_sizes.insert(node_id, (max_width, height));
                         }
@@ -302,7 +310,8 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             Direction::TopDown | Direction::BottomUp => {
                 // Vertical layout: layers are rows (Y), nodes distributed on X
                 // Find the widest layer (sum of node widths + gaps) for centering
-                let widest_layer_width = layer_nodes.iter()
+                let widest_layer_width = layer_nodes
+                    .iter()
                     .map(|layer| {
                         let total: usize = layer.iter().map(|&id| node_sizes[id].0).sum();
                         total + layer.len().saturating_sub(1) * self.config.node_sep
@@ -339,10 +348,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                         max_width = max_width.max(x + width + self.config.padding);
                     } else {
                         // Multiple nodes - distribute across from center
-                        let total_width: usize = layer.iter()
-                            .map(|&id| node_sizes[id].0)
-                            .sum::<usize>()
-                            + (layer.len() - 1) * self.config.node_sep;
+                        let total_width: usize =
+                            layer.iter().map(|&id| node_sizes[id].0).sum::<usize>()
+                                + (layer.len() - 1) * self.config.node_sep;
                         let start_x = center_x.saturating_sub(total_width / 2);
                         let mut x = start_x;
 
@@ -371,27 +379,28 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 // First, calculate the maximum height needed for any layer
                 let mut layer_max_heights: Vec<usize> = Vec::new();
                 for layer in &layer_nodes {
-                    let layer_height: usize = layer.iter()
-                        .map(|&id| node_sizes[id].1)
-                        .sum::<usize>()
-                        + layer.len().saturating_sub(1) * self.config.node_sep;
+                    let layer_height: usize =
+                        layer.iter().map(|&id| node_sizes[id].1).sum::<usize>()
+                            + layer.len().saturating_sub(1) * self.config.node_sep;
                     layer_max_heights.push(layer_height);
                 }
                 let total_max_height = *layer_max_heights.iter().max().unwrap_or(&0);
 
                 let mut x = self.config.padding;
 
-                let layer_iter: Box<dyn Iterator<Item = (usize, &Vec<&str>)>> = if direction.is_reversed() {
-                    Box::new(layer_nodes.iter().enumerate().rev().map(|(i, l)| (i, l)))
-                } else {
-                    Box::new(layer_nodes.iter().enumerate().map(|(i, l)| (i, l)))
-                };
+                let layer_iter: Box<dyn Iterator<Item = (usize, &Vec<&str>)>> =
+                    if direction.is_reversed() {
+                        Box::new(layer_nodes.iter().enumerate().rev().map(|(i, l)| (i, l)))
+                    } else {
+                        Box::new(layer_nodes.iter().enumerate().map(|(i, l)| (i, l)))
+                    };
 
                 for (layer_idx, layer) in layer_iter {
                     // Calculate total height of this layer's nodes
                     let layer_height = layer_max_heights[layer_idx];
                     // Center the layer vertically
-                    let start_y = self.config.padding + (total_max_height.saturating_sub(layer_height)) / 2;
+                    let start_y =
+                        self.config.padding + (total_max_height.saturating_sub(layer_height)) / 2;
                     let mut y = start_y;
                     let mut layer_width = 0;
 
@@ -420,9 +429,7 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
 
         debug!(
             positioned_node_count = positioned_nodes.len(),
-            max_width,
-            max_height,
-            "Node positioning completed"
+            max_width, max_height, "Node positioning completed"
         );
         drop(_position_enter);
 
@@ -462,7 +469,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
         }
 
         for (source_id, edges) in edges_by_source {
-            let Some(from) = node_positions.get(source_id) else { continue };
+            let Some(from) = node_positions.get(source_id) else {
+                continue;
+            };
 
             let group_size = edges.len();
             let is_split = group_size > 1;
@@ -471,9 +480,15 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             let junction = if is_split {
                 match direction {
                     Direction::TopDown => Some((from.x + from.width / 2, from.y + from.height + 1)),
-                    Direction::BottomUp => Some((from.x + from.width / 2, from.y.saturating_sub(1))),
-                    Direction::LeftRight => Some((from.x + from.width + 1, from.y + from.height / 2)),
-                    Direction::RightLeft => Some((from.x.saturating_sub(1), from.y + from.height / 2)),
+                    Direction::BottomUp => {
+                        Some((from.x + from.width / 2, from.y.saturating_sub(1)))
+                    }
+                    Direction::LeftRight => {
+                        Some((from.x + from.width + 1, from.y + from.height / 2))
+                    }
+                    Direction::RightLeft => {
+                        Some((from.x.saturating_sub(1), from.y + from.height / 2))
+                    }
                 }
             } else {
                 None
@@ -482,11 +497,16 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
             // Sort edges for consistent ordering (by target position)
             let mut sorted_edges: Vec<_> = edges.into_iter().collect();
             sorted_edges.sort_by_key(|e| {
-                node_positions.get(e.to.as_str()).map(|n| (n.x, n.y)).unwrap_or((usize::MAX, usize::MAX))
+                node_positions
+                    .get(e.to.as_str())
+                    .map(|n| (n.x, n.y))
+                    .unwrap_or((usize::MAX, usize::MAX))
             });
 
             for (group_index, edge) in sorted_edges.into_iter().enumerate() {
-                let Some(to) = node_positions.get(edge.to.as_str()) else { continue };
+                let Some(to) = node_positions.get(edge.to.as_str()) else {
+                    continue;
+                };
 
                 // Check if this edge is part of a merge
                 let merge_junction = merge_junctions.get(edge.to.as_str()).copied();
@@ -530,7 +550,10 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 });
             }
         }
-        debug!(positioned_edge_count = positioned_edges.len(), "Edge routing completed");
+        debug!(
+            positioned_edge_count = positioned_edges.len(),
+            "Edge routing completed"
+        );
         drop(_edge_enter);
 
         // Calculate subgraph bounding boxes from member node positions
@@ -592,7 +615,10 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
                 height: (max_y - min_y) + border_padding * 2 + title_height,
             });
         }
-        debug!(subgraph_count = positioned_subgraphs.len(), "Subgraph bounding boxes calculated");
+        debug!(
+            subgraph_count = positioned_subgraphs.len(),
+            "Subgraph bounding boxes calculated"
+        );
         drop(_subgraph_enter);
 
         let final_width = max_width + self.config.padding;
@@ -649,11 +675,7 @@ mod tests {
         assert!(result.width > 0);
         assert!(result.height > 0);
 
-        let node_by_id: HashMap<_, _> = result
-            .nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_by_id: HashMap<_, _> = result.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // LR layout: x should increase left to right
         assert!(node_by_id["A"].x < node_by_id["B"].x);
@@ -673,11 +695,7 @@ mod tests {
         let layout = FlowchartLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
 
-        let node_by_id: HashMap<_, _> = result
-            .nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_by_id: HashMap<_, _> = result.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // TD layout: y should increase top to bottom
         assert!(node_by_id["A"].y < node_by_id["B"].y);
@@ -702,11 +720,7 @@ mod tests {
 
         assert_eq!(result.nodes.len(), 4);
 
-        let node_by_id: HashMap<_, _> = result
-            .nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_by_id: HashMap<_, _> = result.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // B and C should be in the same column (same x)
         assert_eq!(node_by_id["B"].x, node_by_id["C"].x);
@@ -755,11 +769,7 @@ mod tests {
         let layout = FlowchartLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
 
-        let node_by_id: HashMap<_, _> = result
-            .nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_by_id: HashMap<_, _> = result.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // BT layout: y should decrease bottom to top (higher y = lower in diagram)
         assert!(node_by_id["A"].y > node_by_id["B"].y);
@@ -779,11 +789,7 @@ mod tests {
         let layout = FlowchartLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
 
-        let node_by_id: HashMap<_, _> = result
-            .nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_by_id: HashMap<_, _> = result.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // RL layout: x should decrease right to left
         assert!(node_by_id["A"].x > node_by_id["B"].x);
@@ -846,7 +852,8 @@ mod tests {
         db.add_simple_node("A", "Start").unwrap();
         db.add_simple_node("B", "End").unwrap();
         db.add_simple_edge("A", "B").unwrap();
-        db.add_labeled_edge("A", "B", crate::core::EdgeType::DottedArrow, "Alternative").unwrap();
+        db.add_labeled_edge("A", "B", crate::core::EdgeType::DottedArrow, "Alternative")
+            .unwrap();
 
         let layout = FlowchartLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
@@ -884,9 +891,24 @@ mod tests {
         assert_eq!(result.edges.len(), 6);
 
         // B, C, D should be in the same layer (layer 1)
-        let layer_b = result.nodes.iter().position(|n| n.id == "B").map(|i| result.nodes[i].y).unwrap();
-        let layer_c = result.nodes.iter().position(|n| n.id == "C").map(|i| result.nodes[i].y).unwrap();
-        let layer_d = result.nodes.iter().position(|n| n.id == "D").map(|i| result.nodes[i].y).unwrap();
+        let layer_b = result
+            .nodes
+            .iter()
+            .position(|n| n.id == "B")
+            .map(|i| result.nodes[i].y)
+            .unwrap();
+        let layer_c = result
+            .nodes
+            .iter()
+            .position(|n| n.id == "C")
+            .map(|i| result.nodes[i].y)
+            .unwrap();
+        let layer_d = result
+            .nodes
+            .iter()
+            .position(|n| n.id == "D")
+            .map(|i| result.nodes[i].y)
+            .unwrap();
         assert_eq!(layer_b, layer_c);
         assert_eq!(layer_c, layer_d);
     }
@@ -919,18 +941,21 @@ mod tests {
     fn test_node_shapes_affect_sizing() {
         let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
 
-        db.add_shaped_node("A", "Short", crate::core::NodeShape::Rectangle).unwrap();
-        db.add_shaped_node("B", "This is a very long label", crate::core::NodeShape::Rectangle).unwrap();
-        db.add_shaped_node("C", "Diamond", crate::core::NodeShape::Diamond).unwrap();
+        db.add_shaped_node("A", "Short", crate::core::NodeShape::Rectangle)
+            .unwrap();
+        db.add_shaped_node(
+            "B",
+            "This is a very long label",
+            crate::core::NodeShape::Rectangle,
+        )
+        .unwrap();
+        db.add_shaped_node("C", "Diamond", crate::core::NodeShape::Diamond)
+            .unwrap();
 
         let layout = FlowchartLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
 
-        let node_by_id: HashMap<_, _> = result
-            .nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_by_id: HashMap<_, _> = result.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // Long label should result in wider node
         assert!(node_by_id["B"].width >= node_by_id["A"].width);
@@ -943,16 +968,26 @@ mod tests {
     fn test_all_node_shapes_in_layout() {
         let mut db = FlowchartDatabase::with_direction(Direction::TopDown);
 
-        db.add_shaped_node("R", "Rect", crate::core::NodeShape::Rectangle).unwrap();
-        db.add_shaped_node("RR", "Rounded", crate::core::NodeShape::RoundedRect).unwrap();
-        db.add_shaped_node("D", "Diamond", crate::core::NodeShape::Diamond).unwrap();
-        db.add_shaped_node("C", "Circle", crate::core::NodeShape::Circle).unwrap();
-        db.add_shaped_node("S", "Subroutine", crate::core::NodeShape::Subroutine).unwrap();
-        db.add_shaped_node("H", "Hexagon", crate::core::NodeShape::Hexagon).unwrap();
-        db.add_shaped_node("Cy", "Cylinder", crate::core::NodeShape::Cylinder).unwrap();
-        db.add_shaped_node("P", "Parallelogram", crate::core::NodeShape::Parallelogram).unwrap();
-        db.add_shaped_node("T", "Trapezoid", crate::core::NodeShape::Trapezoid).unwrap();
-        db.add_shaped_node("A", "Asymmetric", crate::core::NodeShape::Asymmetric).unwrap();
+        db.add_shaped_node("R", "Rect", crate::core::NodeShape::Rectangle)
+            .unwrap();
+        db.add_shaped_node("RR", "Rounded", crate::core::NodeShape::RoundedRect)
+            .unwrap();
+        db.add_shaped_node("D", "Diamond", crate::core::NodeShape::Diamond)
+            .unwrap();
+        db.add_shaped_node("C", "Circle", crate::core::NodeShape::Circle)
+            .unwrap();
+        db.add_shaped_node("S", "Subroutine", crate::core::NodeShape::Subroutine)
+            .unwrap();
+        db.add_shaped_node("H", "Hexagon", crate::core::NodeShape::Hexagon)
+            .unwrap();
+        db.add_shaped_node("Cy", "Cylinder", crate::core::NodeShape::Cylinder)
+            .unwrap();
+        db.add_shaped_node("P", "Parallelogram", crate::core::NodeShape::Parallelogram)
+            .unwrap();
+        db.add_shaped_node("T", "Trapezoid", crate::core::NodeShape::Trapezoid)
+            .unwrap();
+        db.add_shaped_node("A", "Asymmetric", crate::core::NodeShape::Asymmetric)
+            .unwrap();
 
         let layout = FlowchartLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
@@ -989,11 +1024,11 @@ mod tests {
             // Waypoints should connect from and to nodes
             let from_node = result.nodes.iter().find(|n| n.id == edge.from_id).unwrap();
             let to_node = result.nodes.iter().find(|n| n.id == edge.to_id).unwrap();
-            
+
             // First waypoint should be near from_node, last near to_node
             let (first_x, first_y) = edge.waypoints[0];
             let (last_x, last_y) = edge.waypoints[edge.waypoints.len() - 1];
-            
+
             // Check that waypoints are positioned correctly based on direction
             match direction {
                 Direction::TopDown => {

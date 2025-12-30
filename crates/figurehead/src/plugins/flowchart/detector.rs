@@ -9,7 +9,9 @@ use tracing::{debug, info, trace};
 pub struct FlowchartDetector;
 
 // Mermaid flowchart connectors we support
-const CONNECTORS: [&str; 9] = ["-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~"];
+const CONNECTORS: [&str; 9] = [
+    "-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~",
+];
 
 impl FlowchartDetector {
     pub fn new() -> Self {
@@ -147,7 +149,18 @@ impl Detector for FlowchartDetector {
     }
 
     fn patterns(&self) -> Vec<&'static str> {
-        let mut patterns = vec!["graph", "flowchart", "subgraph", "end", "[", "]", "(", ")", "{", "}"];
+        let mut patterns = vec![
+            "graph",
+            "flowchart",
+            "subgraph",
+            "end",
+            "[",
+            "]",
+            "(",
+            ")",
+            "{",
+            "}",
+        ];
         patterns.extend(CONNECTORS);
         patterns
     }

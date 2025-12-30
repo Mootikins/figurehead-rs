@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{debug, info, span, trace, warn, Level};
 
-use crate::core::{Database, Detector, Parser, Renderer, RenderConfig};
+use crate::core::{Database, Detector, Parser, RenderConfig, Renderer};
 use crate::plugins::class::ClassDatabase;
 use crate::plugins::flowchart::FlowchartDatabase;
 use crate::plugins::gitgraph::GitGraphDatabase;
@@ -583,13 +583,13 @@ mod tests {
     #[test]
     fn test_process_gitgraph() {
         use crate::plugins::gitgraph::GitGraphDetector;
-        
+
         let mut orchestrator = Orchestrator::with_all_plugins();
         orchestrator.register_detector("gitgraph".to_string(), Box::new(GitGraphDetector::new()));
-        
+
         let input = "gitGraph\n   commit\n   commit\n   commit";
         let result = orchestrator.process(input);
-        
+
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(!output.is_empty());
@@ -598,7 +598,7 @@ mod tests {
     #[test]
     fn test_process_gitgraph_with_branches() {
         let orchestrator = Orchestrator::with_all_plugins();
-        
+
         let input = r#"gitGraph
    commit
    branch develop

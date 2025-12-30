@@ -2,9 +2,9 @@
 //!
 //! Parses sequence diagram syntax into the database.
 
-use anyhow::Result;
+use super::database::{ArrowHead, ArrowType, LineStyle, Message, Participant, SequenceDatabase};
 use crate::core::Parser;
-use super::database::{ArrowType, LineStyle, ArrowHead, Message, Participant, SequenceDatabase};
+use anyhow::Result;
 
 /// Sequence diagram parser
 pub struct SequenceParser;
@@ -17,12 +17,30 @@ impl SequenceParser {
     /// Parse an arrow type from syntax like "->>" or "-->>"
     fn parse_arrow(&self, arrow_str: &str) -> Option<ArrowType> {
         match arrow_str {
-            "->>" => Some(ArrowType { line: LineStyle::Solid, head: ArrowHead::Arrow }),
-            "-->>" => Some(ArrowType { line: LineStyle::Dotted, head: ArrowHead::Arrow }),
-            "->" => Some(ArrowType { line: LineStyle::Solid, head: ArrowHead::None }),
-            "-->" => Some(ArrowType { line: LineStyle::Dotted, head: ArrowHead::None }),
-            "-)" => Some(ArrowType { line: LineStyle::Solid, head: ArrowHead::Open }),
-            "--)" => Some(ArrowType { line: LineStyle::Dotted, head: ArrowHead::Open }),
+            "->>" => Some(ArrowType {
+                line: LineStyle::Solid,
+                head: ArrowHead::Arrow,
+            }),
+            "-->>" => Some(ArrowType {
+                line: LineStyle::Dotted,
+                head: ArrowHead::Arrow,
+            }),
+            "->" => Some(ArrowType {
+                line: LineStyle::Solid,
+                head: ArrowHead::None,
+            }),
+            "-->" => Some(ArrowType {
+                line: LineStyle::Dotted,
+                head: ArrowHead::None,
+            }),
+            "-)" => Some(ArrowType {
+                line: LineStyle::Solid,
+                head: ArrowHead::Open,
+            }),
+            "--)" => Some(ArrowType {
+                line: LineStyle::Dotted,
+                head: ArrowHead::Open,
+            }),
             _ => None,
         }
     }
@@ -138,7 +156,9 @@ mod tests {
         let parser = SequenceParser::new();
         let mut db = SequenceDatabase::new();
 
-        parser.parse("sequenceDiagram\n    Alice->>Bob: Hello", &mut db).unwrap();
+        parser
+            .parse("sequenceDiagram\n    Alice->>Bob: Hello", &mut db)
+            .unwrap();
 
         assert_eq!(db.participant_count(), 2);
         assert_eq!(db.message_count(), 1);
@@ -156,7 +176,9 @@ mod tests {
         let parser = SequenceParser::new();
         let mut db = SequenceDatabase::new();
 
-        parser.parse("sequenceDiagram\n    Bob-->>Alice: Response", &mut db).unwrap();
+        parser
+            .parse("sequenceDiagram\n    Bob-->>Alice: Response", &mut db)
+            .unwrap();
 
         let msg = db.messages().next().unwrap();
         assert_eq!(msg.arrow.line, LineStyle::Dotted);
@@ -168,7 +190,12 @@ mod tests {
         let parser = SequenceParser::new();
         let mut db = SequenceDatabase::new();
 
-        parser.parse("sequenceDiagram\n    A->B: No head\n    C-->D: Dotted no head", &mut db).unwrap();
+        parser
+            .parse(
+                "sequenceDiagram\n    A->B: No head\n    C-->D: Dotted no head",
+                &mut db,
+            )
+            .unwrap();
 
         let messages: Vec<_> = db.messages().collect();
         assert_eq!(messages[0].arrow.head, ArrowHead::None);
@@ -182,7 +209,12 @@ mod tests {
         let parser = SequenceParser::new();
         let mut db = SequenceDatabase::new();
 
-        parser.parse("sequenceDiagram\n    participant Alice\n    participant Bob\n    Bob->>Alice: Hi", &mut db).unwrap();
+        parser
+            .parse(
+                "sequenceDiagram\n    participant Alice\n    participant Bob\n    Bob->>Alice: Hi",
+                &mut db,
+            )
+            .unwrap();
 
         // Explicit participants come first
         let names: Vec<_> = db.participants().iter().map(|p| p.id.as_str()).collect();
@@ -207,7 +239,12 @@ mod tests {
         let parser = SequenceParser::new();
         let mut db = SequenceDatabase::new();
 
-        parser.parse("sequenceDiagram\n    actor User\n    User->>System: Request", &mut db).unwrap();
+        parser
+            .parse(
+                "sequenceDiagram\n    actor User\n    User->>System: Request",
+                &mut db,
+            )
+            .unwrap();
 
         assert_eq!(db.participant_count(), 2);
         assert_eq!(db.participants()[0].id, "User");
@@ -233,7 +270,9 @@ mod tests {
         let parser = SequenceParser::new();
         let mut db = SequenceDatabase::new();
 
-        parser.parse("sequenceDiagram\n    A-)B: Async message", &mut db).unwrap();
+        parser
+            .parse("sequenceDiagram\n    A-)B: Async message", &mut db)
+            .unwrap();
 
         let msg = db.messages().next().unwrap();
         assert_eq!(msg.arrow.line, LineStyle::Solid);

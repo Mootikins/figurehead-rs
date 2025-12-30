@@ -30,7 +30,11 @@ fn run_cli(args: &[&str], input: &str) -> Result<String, Box<dyn std::error::Err
     // Build command
     let bin = cli_binary();
     if !bin.exists() {
-        return Err(format!("Binary not found at {:?}. Run `cargo build -p figurehead-cli` first.", bin).into());
+        return Err(format!(
+            "Binary not found at {:?}. Run `cargo build -p figurehead-cli` first.",
+            bin
+        )
+        .into());
     }
 
     let mut cmd_args = vec!["convert", "-i", input_path.to_str().unwrap()];
@@ -155,7 +159,11 @@ fn test_exact_character_positions() {
 
     // Each line should have consistent width interpretation
     // Check that box drawing characters are present
-    assert!(output.contains('┌'), "Should have top-left corner\nOutput:\n{}", output);
+    assert!(
+        output.contains('┌'),
+        "Should have top-left corner\nOutput:\n{}",
+        output
+    );
     assert!(output.contains('┐'), "Should have top-right corner");
     assert!(output.contains('└'), "Should have bottom-left corner");
     assert!(output.contains('┘'), "Should have bottom-right corner");
@@ -193,11 +201,13 @@ fn test_box_vertical_alignment() {
     let top_line = lines.iter().find(|l| l.contains('┌')).unwrap();
     let bottom_line = lines.iter().find(|l| l.contains('└')).unwrap();
 
-    let top_positions: Vec<usize> = top_line.char_indices()
+    let top_positions: Vec<usize> = top_line
+        .char_indices()
         .filter(|(_, c)| *c == '┌' || *c == '┐')
         .map(|(i, _)| i)
         .collect();
-    let bottom_positions: Vec<usize> = bottom_line.char_indices()
+    let bottom_positions: Vec<usize> = bottom_line
+        .char_indices()
         .filter(|(_, c)| *c == '└' || *c == '┘')
         .map(|(i, _)| i)
         .collect();
@@ -246,10 +256,7 @@ fn test_label_containment() {
     let output = run_cli(&["--style", "unicode"], input).expect("CLI should succeed");
 
     // Check that "Short" is enclosed
-    assert!(
-        output.contains("Short"),
-        "Should contain the short label"
-    );
+    assert!(output.contains("Short"), "Should contain the short label");
     assert!(
         output.contains("A Much Longer Label Here") || output.contains("A Much Longer"),
         "Should contain the long label"

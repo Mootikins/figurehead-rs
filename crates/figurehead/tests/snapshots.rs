@@ -94,10 +94,7 @@ fn test_all_shapes() {
 
 #[test]
 fn test_labeled_edges() {
-    assert_fixture(
-        "labeled_edges",
-        "graph TD; A-->|yes|B; A-->|no|C",
-    );
+    assert_fixture("labeled_edges", "graph TD; A-->|yes|B; A-->|no|C");
 }
 
 #[test]
@@ -155,6 +152,27 @@ fn test_subgraph_multiple() {
 }
 
 // =============================================================================
+// Flowchart Complex Tests
+// =============================================================================
+
+#[test]
+fn test_flowchart_multi_path() {
+    assert_fixture(
+        "flowchart_multi_path",
+        r#"graph TD
+            Start[Start] --> Auth{Authenticated?}
+            Auth -->|Yes| Load[Load Data]
+            Auth -->|No| Login[Login Page]
+            Login --> Auth
+            Load --> Process{Process Type}
+            Process -->|A| TypeA[Handler A]
+            Process -->|B| TypeB[Handler B]
+            TypeA --> End[End]
+            TypeB --> End"#,
+    );
+}
+
+// =============================================================================
 // Git Graph Snapshots
 // =============================================================================
 
@@ -205,6 +223,24 @@ fn test_gitgraph_with_branch() {
     );
 }
 
+#[test]
+fn test_gitgraph_multi_branch() {
+    assert_fixture(
+        "gitgraph_multi_branch",
+        r#"gitGraph
+   commit id: "init"
+   branch feature
+   checkout feature
+   commit id: "feat-1"
+   commit id: "feat-2"
+   checkout main
+   commit id: "hotfix"
+   branch release
+   checkout release
+   commit id: "v1.0""#,
+    );
+}
+
 // =============================================================================
 // Sequence Diagram Snapshots
 // =============================================================================
@@ -249,6 +285,23 @@ fn test_sequence_open_arrows() {
         r#"sequenceDiagram
     Alice->Bob: Sync call
     Bob-->Alice: Sync response"#,
+    );
+}
+
+#[test]
+fn test_sequence_all_arrow_types() {
+    assert_fixture(
+        "sequence_all_arrows",
+        r#"sequenceDiagram
+    participant C as Client
+    participant S as Server
+    participant D as Database
+    C->>S: HTTP Request
+    S->>D: Query
+    D-->>S: Results
+    S-->>C: Response
+    C->S: Sync call
+    S-->C: Sync response"#,
     );
 }
 
@@ -331,5 +384,39 @@ fn test_class_association_with_label() {
         "class_association_label",
         r#"classDiagram
     Customer --> Order : places"#,
+    );
+}
+
+#[test]
+fn test_class_all_relationships() {
+    assert_fixture(
+        "class_all_relationships",
+        r#"classDiagram
+    Animal <|-- Dog
+    Car *-- Engine
+    University o-- Student
+    Customer --> Order"#,
+    );
+}
+
+#[test]
+fn test_class_full_featured() {
+    assert_fixture(
+        "class_full_featured",
+        r#"classDiagram
+    class Vehicle {
+        +brand: string
+        #year: int
+        -vin: string
+        +start()
+        +stop()
+        #maintain()*
+        -serialize()$
+    }
+    class Car {
+        +doors: int
+        +drive()
+    }
+    Vehicle <|-- Car"#,
     );
 }

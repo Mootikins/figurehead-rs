@@ -12,8 +12,8 @@ use super::database::{Message, Participant, SequenceDatabase, SequenceItem};
 pub struct PositionedParticipant {
     pub id: String,
     pub label: String,
-    pub x: usize,         // Center x position
-    pub width: usize,     // Width of the participant box
+    pub x: usize,     // Center x position
+    pub width: usize, // Width of the participant box
 }
 
 /// Positioned message for rendering
@@ -34,7 +34,7 @@ pub struct SequenceLayoutResult {
     pub messages: Vec<PositionedMessage>,
     pub width: usize,
     pub height: usize,
-    pub lifeline_start_y: usize,  // Y where lifelines begin (after headers)
+    pub lifeline_start_y: usize, // Y where lifelines begin (after headers)
 }
 
 /// Sequence diagram layout algorithm
@@ -48,10 +48,10 @@ pub struct SequenceLayoutAlgorithm {
 impl SequenceLayoutAlgorithm {
     pub fn new() -> Self {
         Self {
-            participant_padding: 2,   // Padding inside participant box
-            participant_spacing: 4,   // Space between participants
-            message_height: 2,        // Vertical space per message
-            header_height: 3,         // Space for participant header
+            participant_padding: 2, // Padding inside participant box
+            participant_spacing: 4, // Space between participants
+            message_height: 2,      // Vertical space per message
+            header_height: 3,       // Space for participant header
         }
     }
 
@@ -77,7 +77,8 @@ impl SequenceLayoutAlgorithm {
         }
 
         // Calculate participant widths
-        let widths: Vec<usize> = participants.iter()
+        let widths: Vec<usize> = participants
+            .iter()
             .map(|p| self.participant_width(p))
             .collect();
 
@@ -113,7 +114,8 @@ impl SequenceLayoutAlgorithm {
                     let slots = right_idx - left_idx;
                     let per_slot = (extra + slots - 1) / slots;
                     for i in left_idx..right_idx {
-                        adjusted_spacing[i] = adjusted_spacing[i].max(self.participant_spacing + per_slot);
+                        adjusted_spacing[i] =
+                            adjusted_spacing[i].max(self.participant_spacing + per_slot);
                     }
                 }
             }
@@ -134,7 +136,12 @@ impl SequenceLayoutAlgorithm {
                 width,
             });
 
-            x += width + if i < participants.len() - 1 { adjusted_spacing[i] } else { 0 };
+            x += width
+                + if i < participants.len() - 1 {
+                    adjusted_spacing[i]
+                } else {
+                    0
+                };
         }
 
         let total_width = x + 2; // Right margin
@@ -185,8 +192,8 @@ impl Default for SequenceLayoutAlgorithm {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::database::Message;
+    use super::*;
 
     #[test]
     fn test_empty_layout() {
@@ -214,7 +221,8 @@ mod tests {
     #[test]
     fn test_message_positioning() {
         let mut db = SequenceDatabase::new();
-        db.add_message(Message::new("Alice", "Bob", "Hello")).unwrap();
+        db.add_message(Message::new("Alice", "Bob", "Hello"))
+            .unwrap();
         db.add_message(Message::new("Bob", "Alice", "Hi")).unwrap();
 
         let layout = SequenceLayoutAlgorithm::new();
@@ -228,8 +236,10 @@ mod tests {
     #[test]
     fn test_message_direction() {
         let mut db = SequenceDatabase::new();
-        db.add_message(Message::new("Alice", "Bob", "Right")).unwrap();
-        db.add_message(Message::new("Bob", "Alice", "Left")).unwrap();
+        db.add_message(Message::new("Alice", "Bob", "Right"))
+            .unwrap();
+        db.add_message(Message::new("Bob", "Alice", "Left"))
+            .unwrap();
 
         let layout = SequenceLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();

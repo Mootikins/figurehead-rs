@@ -34,7 +34,11 @@ impl Detector for GitGraphDetector {
         }
 
         // Check for Mermaid git graph commands
-        if input_lower.contains("commit") && (input_lower.contains("branch") || input_lower.contains("merge") || input_lower.contains("checkout")) {
+        if input_lower.contains("commit")
+            && (input_lower.contains("branch")
+                || input_lower.contains("merge")
+                || input_lower.contains("checkout"))
+        {
             debug!("Detected git graph via git commands");
             return true;
         }
@@ -53,7 +57,7 @@ impl Detector for GitGraphDetector {
         let mut score: f64 = 0.0;
 
         let input_lower = input.to_lowercase();
-        
+
         // Primary indicators
         if input_lower.contains("gitgraph") || input_lower.contains("git graph") {
             score += 0.8;
@@ -90,7 +94,15 @@ impl Detector for GitGraphDetector {
     }
 
     fn patterns(&self) -> Vec<&'static str> {
-        vec!["gitGraph", "git graph", "commit", "branch", "merge", "checkout", "switch"]
+        vec![
+            "gitGraph",
+            "git graph",
+            "commit",
+            "branch",
+            "merge",
+            "checkout",
+            "switch",
+        ]
     }
 }
 

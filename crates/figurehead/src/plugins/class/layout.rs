@@ -5,7 +5,7 @@
 use anyhow::Result;
 use unicode_width::UnicodeWidthStr;
 
-use super::database::{Class, ClassDatabase, Visibility, Classifier, RelationshipKind};
+use super::database::{Class, ClassDatabase, Classifier, RelationshipKind, Visibility};
 
 /// Positioned class box for rendering
 #[derive(Debug, Clone)]
@@ -68,7 +68,11 @@ impl ClassLayoutAlgorithm {
     ) -> String {
         let vis = visibility.map(|v| v.to_char()).unwrap_or(' ');
         let suffix = classifier.map(|c| c.to_char()).unwrap_or(' ');
-        let suffix_str = if suffix == ' ' { String::new() } else { suffix.to_string() };
+        let suffix_str = if suffix == ' ' {
+            String::new()
+        } else {
+            suffix.to_string()
+        };
 
         if is_method {
             if let Some(t) = member_type {
@@ -90,30 +94,38 @@ impl ClassLayoutAlgorithm {
         let mut max_width = UnicodeWidthStr::width(class.name.as_str());
 
         // Format and measure attributes
-        let attrs: Vec<String> = class.attributes.iter().map(|m| {
-            Self::format_member(
-                m.visibility,
-                &m.name,
-                m.member_type.as_deref(),
-                m.classifier,
-                false,
-            )
-        }).collect();
+        let attrs: Vec<String> = class
+            .attributes
+            .iter()
+            .map(|m| {
+                Self::format_member(
+                    m.visibility,
+                    &m.name,
+                    m.member_type.as_deref(),
+                    m.classifier,
+                    false,
+                )
+            })
+            .collect();
 
         for attr in &attrs {
             max_width = max_width.max(UnicodeWidthStr::width(attr.as_str()));
         }
 
         // Format and measure methods
-        let methods: Vec<String> = class.methods.iter().map(|m| {
-            Self::format_member(
-                m.visibility,
-                &m.name,
-                m.member_type.as_deref(),
-                m.classifier,
-                true,
-            )
-        }).collect();
+        let methods: Vec<String> = class
+            .methods
+            .iter()
+            .map(|m| {
+                Self::format_member(
+                    m.visibility,
+                    &m.name,
+                    m.member_type.as_deref(),
+                    m.classifier,
+                    true,
+                )
+            })
+            .collect();
 
         for method in &methods {
             max_width = max_width.max(UnicodeWidthStr::width(method.as_str()));
@@ -155,28 +167,39 @@ impl ClassLayoutAlgorithm {
         }
 
         // Pre-calculate all dimensions and formatted content
-        let class_info: Vec<_> = classes.iter().map(|c| {
-            let (width, height) = self.class_dimensions(c);
-            let attrs: Vec<String> = c.attributes.iter().map(|m| {
-                Self::format_member(
-                    m.visibility,
-                    &m.name,
-                    m.member_type.as_deref(),
-                    m.classifier,
-                    false,
-                )
-            }).collect();
-            let methods: Vec<String> = c.methods.iter().map(|m| {
-                Self::format_member(
-                    m.visibility,
-                    &m.name,
-                    m.member_type.as_deref(),
-                    m.classifier,
-                    true,
-                )
-            }).collect();
-            (c, width, height, attrs, methods)
-        }).collect();
+        let class_info: Vec<_> = classes
+            .iter()
+            .map(|c| {
+                let (width, height) = self.class_dimensions(c);
+                let attrs: Vec<String> = c
+                    .attributes
+                    .iter()
+                    .map(|m| {
+                        Self::format_member(
+                            m.visibility,
+                            &m.name,
+                            m.member_type.as_deref(),
+                            m.classifier,
+                            false,
+                        )
+                    })
+                    .collect();
+                let methods: Vec<String> = c
+                    .methods
+                    .iter()
+                    .map(|m| {
+                        Self::format_member(
+                            m.visibility,
+                            &m.name,
+                            m.member_type.as_deref(),
+                            m.classifier,
+                            true,
+                        )
+                    })
+                    .collect();
+                (c, width, height, attrs, methods)
+            })
+            .collect();
 
         // Arrange in rows
         let mut positioned = Vec::new();
@@ -228,12 +251,20 @@ impl ClassLayoutAlgorithm {
 
                 let (from_x, from_y, to_x, to_y) = if same_row {
                     // Horizontal: connect right edge of left class to left edge of right class
-                    let (left, right) = if from.x < to.x { (from, to) } else { (to, from) };
+                    let (left, right) = if from.x < to.x {
+                        (from, to)
+                    } else {
+                        (to, from)
+                    };
                     let y = left.y + left.height / 2; // Middle of class height
                     (left.x + left.width, y, right.x, y)
                 } else {
                     // Vertical: connect bottom of top class to top of bottom class
-                    let (top, bottom) = if from.y < to.y { (from, to) } else { (to, from) };
+                    let (top, bottom) = if from.y < to.y {
+                        (from, to)
+                    } else {
+                        (to, from)
+                    };
                     let x = top.x + top.width / 2;
                     (x, top.y + top.height, x, bottom.y)
                 };
@@ -268,8 +299,8 @@ impl Default for ClassLayoutAlgorithm {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::database::{Member, Visibility};
+    use super::*;
 
     #[test]
     fn test_empty_layout() {
@@ -341,8 +372,7 @@ mod tests {
         let mut db = ClassDatabase::new();
         let mut class = Class::new("X");
         class.add_attribute(
-            Member::attribute("veryLongAttributeName")
-                .with_type("VeryLongTypeName"),
+            Member::attribute("veryLongAttributeName").with_type("VeryLongTypeName"),
         );
         db.add_class(class).unwrap();
 
@@ -385,7 +415,12 @@ mod tests {
         let mut db = ClassDatabase::new();
         db.add_class(Class::new("Animal")).unwrap();
         db.add_class(Class::new("Dog")).unwrap();
-        db.add_relationship(Relationship::new("Animal", "Dog", RelationshipKind::Inheritance)).unwrap();
+        db.add_relationship(Relationship::new(
+            "Animal",
+            "Dog",
+            RelationshipKind::Inheritance,
+        ))
+        .unwrap();
 
         let layout = ClassLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
@@ -404,7 +439,8 @@ mod tests {
         let mut db = ClassDatabase::new();
         db.add_class(Class::new("A")).unwrap();
         db.add_class(Class::new("B")).unwrap();
-        db.add_relationship(Relationship::new("A", "B", RelationshipKind::Association)).unwrap();
+        db.add_relationship(Relationship::new("A", "B", RelationshipKind::Association))
+            .unwrap();
 
         let layout = ClassLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();
@@ -429,8 +465,9 @@ mod tests {
         db.add_class(Class::new("Order")).unwrap();
         db.add_relationship(
             Relationship::new("Customer", "Order", RelationshipKind::Association)
-                .with_label("places")
-        ).unwrap();
+                .with_label("places"),
+        )
+        .unwrap();
 
         let layout = ClassLayoutAlgorithm::new();
         let result = layout.layout(&db).unwrap();

@@ -2,8 +2,8 @@
 //!
 //! Stores classes and relationships for class diagrams.
 
-use anyhow::Result;
 use crate::core::Database;
+use anyhow::Result;
 
 /// Visibility modifier for class members
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,14 +146,14 @@ impl Class {
 /// Relationship type between classes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelationshipKind {
-    Inheritance,  // <|--
-    Composition,  // *--
-    Aggregation,  // o--
-    Association,  // -->
-    Dependency,   // ..>
-    Realization,  // ..|>
-    Link,         // --
-    DashedLink,   // ..
+    Inheritance, // <|--
+    Composition, // *--
+    Aggregation, // o--
+    Association, // -->
+    Dependency,  // ..>
+    Realization, // ..|>
+    Link,        // --
+    DashedLink,  // ..
 }
 
 /// A relationship between classes
@@ -350,8 +350,12 @@ mod tests {
         let mut db = ClassDatabase::new();
         db.add_class(Class::new("Animal")).unwrap();
         db.add_class(Class::new("Dog")).unwrap();
-        db.add_relationship(Relationship::new("Animal", "Dog", RelationshipKind::Inheritance))
-            .unwrap();
+        db.add_relationship(Relationship::new(
+            "Animal",
+            "Dog",
+            RelationshipKind::Inheritance,
+        ))
+        .unwrap();
 
         assert_eq!(db.relationship_count(), 1);
     }

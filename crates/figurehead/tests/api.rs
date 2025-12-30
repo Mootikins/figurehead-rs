@@ -34,7 +34,8 @@ fn test_render_with_diamond() {
     // Diamond shape uses ◆ (Box style) or < > (Tall style)
     assert!(
         ascii.contains('◆') || ascii.contains('<') || ascii.contains('>'),
-        "Expected diamond chars in: {}", ascii
+        "Expected diamond chars in: {}",
+        ascii
     );
 }
 

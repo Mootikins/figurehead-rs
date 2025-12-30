@@ -51,7 +51,10 @@ impl Parser<GitGraphDatabase> for GitGraphParser {
 
         // Parse syntax into AST
         let syntax_nodes = self.syntax_parser.parse(input)?;
-        debug!(syntax_node_count = syntax_nodes.len(), "Parsed syntax nodes");
+        debug!(
+            syntax_node_count = syntax_nodes.len(),
+            "Parsed syntax nodes"
+        );
 
         let mut node_count = 0;
         let mut edge_count = 0;
@@ -59,19 +62,24 @@ impl Parser<GitGraphDatabase> for GitGraphParser {
         // Convert syntax nodes to database operations
         for syntax_node in syntax_nodes {
             match syntax_node {
-                crate::core::SyntaxNode::Node { id, label, metadata: _metadata } => {
+                crate::core::SyntaxNode::Node {
+                    id,
+                    label,
+                    metadata: _metadata,
+                } => {
                     // Create commit node
                     let shape = NodeShape::Circle; // Commits are circles
 
-                    let node = NodeData::with_shape(
-                        &id,
-                        label.as_deref().unwrap_or(&id),
-                        shape,
-                    );
+                    let node = NodeData::with_shape(&id, label.as_deref().unwrap_or(&id), shape);
                     database.add_node(node)?;
                     node_count += 1;
                 }
-                crate::core::SyntaxNode::Edge { from, to, label, metadata: _metadata } => {
+                crate::core::SyntaxNode::Edge {
+                    from,
+                    to,
+                    label,
+                    metadata: _metadata,
+                } => {
                     // Create parent edge (in git, edges go from child to parent)
                     let edge = if let Some(label) = label {
                         EdgeData::with_label(&from, &to, crate::core::EdgeType::Arrow, label)
@@ -90,8 +98,7 @@ impl Parser<GitGraphDatabase> for GitGraphParser {
 
         info!(
             node_count,
-            edge_count,
-            "Git graph parsing completed successfully"
+            edge_count, "Git graph parsing completed successfully"
         );
 
         Ok(())

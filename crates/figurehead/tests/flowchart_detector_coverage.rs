@@ -1,7 +1,7 @@
 //! Tests for flowchart detector edge cases
 
-use figurehead::plugins::flowchart::FlowchartDetector;
 use figurehead::core::Detector;
+use figurehead::plugins::flowchart::FlowchartDetector;
 
 #[test]
 fn test_detector_empty_input() {

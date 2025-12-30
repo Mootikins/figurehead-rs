@@ -1,5 +1,7 @@
-use figurehead::plugins::flowchart::{FlowchartDatabase, FlowchartLayoutAlgorithm, FlowchartRenderer};
 use figurehead::core::{Direction, EdgeType, LayoutAlgorithm, Renderer};
+use figurehead::plugins::flowchart::{
+    FlowchartDatabase, FlowchartLayoutAlgorithm, FlowchartRenderer,
+};
 
 fn main() {
     let mut db = FlowchartDatabase::with_direction(Direction::LeftRight);
@@ -11,12 +13,15 @@ fn main() {
 
     let layout = FlowchartLayoutAlgorithm::new();
     let result = layout.layout(&db).unwrap();
-    
+
     println!("=== Node positions ===");
     for node in &result.nodes {
-        println!("{}: x={}, y={}, w={}, h={}", node.id, node.x, node.y, node.width, node.height);
+        println!(
+            "{}: x={}, y={}, w={}, h={}",
+            node.id, node.x, node.y, node.width, node.height
+        );
     }
-    
+
     println!("\n=== Edge positions ===");
     for edge in &result.edges {
         println!("{} -> {}: {:?}", edge.from_id, edge.to_id, edge.waypoints);
@@ -24,7 +29,7 @@ fn main() {
             println!("  junction: {:?}", j);
         }
     }
-    
+
     let renderer = FlowchartRenderer::new();
     let output = renderer.render(&db).unwrap();
     println!("\n=== Output ===\n{}", output);

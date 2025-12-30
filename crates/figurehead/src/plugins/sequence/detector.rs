@@ -41,8 +41,8 @@ impl Detector for SequenceDetector {
             || input.contains("-x")
             || input.contains("--x");
 
-        let has_participant = input_lower.contains("participant ")
-            || input_lower.contains("actor ");
+        let has_participant =
+            input_lower.contains("participant ") || input_lower.contains("actor ");
 
         if has_sequence_arrows && has_participant {
             return 0.8;

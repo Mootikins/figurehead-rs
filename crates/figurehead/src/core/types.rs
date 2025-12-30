@@ -145,7 +145,10 @@ pub struct RenderConfig {
 impl RenderConfig {
     /// Create a new config with specified options
     pub fn new(style: CharacterSet, diamond_style: DiamondStyle) -> Self {
-        Self { style, diamond_style }
+        Self {
+            style,
+            diamond_style,
+        }
     }
 }
 
@@ -365,11 +368,7 @@ impl EdgeData {
     }
 
     /// Create a new edge with a specific type
-    pub fn with_type(
-        from: impl Into<String>,
-        to: impl Into<String>,
-        edge_type: EdgeType,
-    ) -> Self {
+    pub fn with_type(from: impl Into<String>, to: impl Into<String>, edge_type: EdgeType) -> Self {
         Self {
             from: from.into(),
             to: to.into(),

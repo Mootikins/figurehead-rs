@@ -7,11 +7,13 @@
 use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
-use crate::plugins::flowchart::{FlowchartDatabase, FlowchartParser, FlowchartRenderer, clear_warnings, take_warnings};
+use crate::core::{CharacterSet, Database, Parser, RenderConfig, Renderer};
+#[cfg(target_arch = "wasm32")]
+use crate::plugins::flowchart::{
+    clear_warnings, take_warnings, FlowchartDatabase, FlowchartParser, FlowchartRenderer,
+};
 #[cfg(target_arch = "wasm32")]
 use crate::plugins::Orchestrator;
-#[cfg(target_arch = "wasm32")]
-use crate::core::{CharacterSet, Database, Parser, Renderer, RenderConfig};
 
 #[cfg(target_arch = "wasm32")]
 use console_error_panic_hook;
@@ -43,13 +45,15 @@ pub fn init() {
 pub fn render_flowchart(input: &str) -> String {
     let parser = FlowchartParser::new();
     let mut database = FlowchartDatabase::new();
-    
-    parser.parse(input, &mut database)
+
+    parser
+        .parse(input, &mut database)
         .map_err(|e| format!("Parse error: {}", e))
         .expect("Failed to parse diagram");
 
     let renderer = FlowchartRenderer::new();
-    renderer.render(&database)
+    renderer
+        .render(&database)
         .map_err(|e| format!("Render error: {}", e))
         .expect("Failed to render diagram")
 }
@@ -66,18 +70,19 @@ pub fn render_flowchart(input: &str) -> String {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn render_flowchart_with_style(input: &str, style: &str) -> String {
-    let character_set: CharacterSet = style.parse()
-        .unwrap_or_else(|e| panic!("{}", e));
+    let character_set: CharacterSet = style.parse().unwrap_or_else(|e| panic!("{}", e));
 
     let parser = FlowchartParser::new();
     let mut database = FlowchartDatabase::new();
 
-    parser.parse(input, &mut database)
+    parser
+        .parse(input, &mut database)
         .map_err(|e| format!("Parse error: {}", e))
         .expect("Failed to parse diagram");
 
     let renderer = FlowchartRenderer::with_style(character_set);
-    renderer.render(&database)
+    renderer
+        .render(&database)
         .map_err(|e| format!("Render error: {}", e))
         .expect("Failed to render diagram")
 }
@@ -95,8 +100,9 @@ pub fn render_flowchart_with_style(input: &str, style: &str) -> String {
 pub fn parse_flowchart(input: &str) -> String {
     let parser = FlowchartParser::new();
     let mut database = FlowchartDatabase::new();
-    
-    parser.parse(input, &mut database)
+
+    parser
+        .parse(input, &mut database)
         .map_err(|e| format!("Parse error: {}", e))
         .expect("Failed to parse diagram");
 
@@ -106,8 +112,7 @@ pub fn parse_flowchart(input: &str) -> String {
         "direction": format!("{:?}", database.direction()),
     });
 
-    serde_json::to_string(&result)
-        .expect("Failed to serialize JSON")
+    serde_json::to_string(&result).expect("Failed to serialize JSON")
 }
 
 /// Render any supported diagram type (auto-detects)
@@ -123,7 +128,8 @@ pub fn parse_flowchart(input: &str) -> String {
 pub fn render_diagram(input: &str) -> Result<String, JsValue> {
     let mut orchestrator = Orchestrator::with_all_plugins();
     orchestrator.register_default_detectors();
-    orchestrator.process(input)
+    orchestrator
+        .process(input)
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
 }
 
@@ -139,13 +145,16 @@ pub fn render_diagram(input: &str) -> Result<String, JsValue> {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn render_diagram_with_style(input: &str, style: &str) -> Result<String, JsValue> {
-    let character_set: CharacterSet = style.parse()
-        .map_err(|e| JsValue::from_str(&e))?;
+    let character_set: CharacterSet = style.parse().map_err(|e| JsValue::from_str(&e))?;
 
-    let config = RenderConfig { style: character_set, ..Default::default() };
+    let config = RenderConfig {
+        style: character_set,
+        ..Default::default()
+    };
     let mut orchestrator = Orchestrator::all_plugins(config);
     orchestrator.register_default_detectors();
-    orchestrator.process(input)
+    orchestrator
+        .process(input)
         .map_err(|e| JsValue::from_str(&format!("{}", e)))
 }
 
@@ -169,11 +178,15 @@ pub fn render_diagram_json(input: &str, style: &str) -> String {
                 "output": "",
                 "warnings": [],
                 "error": e
-            }).to_string();
+            })
+            .to_string();
         }
     };
 
-    let config = RenderConfig { style: character_set, ..Default::default() };
+    let config = RenderConfig {
+        style: character_set,
+        ..Default::default()
+    };
     let mut orchestrator = Orchestrator::all_plugins(config);
     orchestrator.register_default_detectors();
 
@@ -184,7 +197,8 @@ pub fn render_diagram_json(input: &str, style: &str) -> String {
                 "output": output,
                 "warnings": warnings,
                 "error": null
-            }).to_string()
+            })
+            .to_string()
         }
         Err(e) => {
             let warnings = take_warnings();
@@ -192,7 +206,8 @@ pub fn render_diagram_json(input: &str, style: &str) -> String {
                 "output": "",
                 "warnings": warnings,
                 "error": format!("{}", e)
-            }).to_string()
+            })
+            .to_string()
         }
     }
 }

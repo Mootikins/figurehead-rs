@@ -165,9 +165,7 @@ pub fn init_logging(
         // Log level filtering can be done via RUST_LOG env var in browser console.
         // Format parameter is ignored in WASM (always logs to console)
         let _ = format; // Suppress unused warning
-        tracing_wasm::set_as_global_default_with_config(
-            WASMLayerConfig::default(),
-        );
+        tracing_wasm::set_as_global_default_with_config(WASMLayerConfig::default());
 
         Ok(())
     }
@@ -198,8 +196,8 @@ pub fn init_logging(
         };
 
         // Parse format
-        let format = LogFormat::from_str(&log_format)
-            .map_err(|e| format!("Invalid log format: {}", e))?;
+        let format =
+            LogFormat::from_str(&log_format).map_err(|e| format!("Invalid log format: {}", e))?;
 
         // Build subscriber based on format
         match format {
@@ -266,10 +264,7 @@ mod tests {
         assert_eq!(LogFormat::from_str("compact").unwrap(), LogFormat::Compact);
         assert_eq!(LogFormat::from_str("pretty").unwrap(), LogFormat::Pretty);
         assert_eq!(LogFormat::from_str("json").unwrap(), LogFormat::Json);
-        assert_eq!(
-            LogFormat::from_str("COMPACT").unwrap(),
-            LogFormat::Compact
-        );
+        assert_eq!(LogFormat::from_str("COMPACT").unwrap(), LogFormat::Compact);
         assert!(LogFormat::from_str("invalid").is_err());
     }
 

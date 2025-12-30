@@ -1,7 +1,7 @@
 //! Tests for public API functions in lib.rs
 
-use figurehead::{render, render_with_style, parse, CharacterSet, Direction};
 use figurehead::prelude::Database;
+use figurehead::{parse, render, render_with_style, CharacterSet, Direction};
 
 #[test]
 fn test_render_flowchart() {

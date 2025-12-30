@@ -7,8 +7,8 @@ use super::chumsky_parser::{ChumskyFlowchartParser, NodeRef, Statement};
 use super::FlowchartDatabase;
 use crate::core::{Database, EdgeData, NodeData, Parser};
 use anyhow::Result;
-use std::cmp::Ordering;
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use tracing::{debug, error, info, span, trace, warn, Level};
 
 thread_local! {
@@ -31,7 +31,9 @@ fn add_warning(warning: String) {
     PARSE_WARNINGS.with(|w| w.borrow_mut().push(warning));
 }
 
-const CONNECTORS: [&str; 9] = ["-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~"];
+const CONNECTORS: [&str; 9] = [
+    "-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~",
+];
 
 /// Flowchart parser implementation
 pub struct FlowchartParser;
@@ -118,11 +120,7 @@ impl Parser<FlowchartDatabase> for FlowchartParser {
             }
         }
 
-        info!(
-            node_count,
-            edge_count,
-            "Parsing completed successfully"
-        );
+        info!(node_count, edge_count, "Parsing completed successfully");
 
         Ok(())
     }
@@ -230,11 +228,9 @@ fn find_next_connector(statement: &str, start: usize) -> Option<(usize, &'static
     CONNECTORS
         .iter()
         .filter_map(|&conn| statement[start..].find(conn).map(|pos| (start + pos, conn)))
-        .min_by(|a, b| {
-            match a.0.cmp(&b.0) {
-                Ordering::Equal => b.1.len().cmp(&a.1.len()),
-                other => other,
-            }
+        .min_by(|a, b| match a.0.cmp(&b.0) {
+            Ordering::Equal => b.1.len().cmp(&a.1.len()),
+            other => other,
         })
 }
 
@@ -606,7 +602,7 @@ mod tests {
 
         parser.parse(input, &mut database).unwrap();
         assert_eq!(database.edge_count(), 9);
-        
+
         let edges: Vec<_> = database.edges().collect();
         assert_eq!(edges[0].edge_type, EdgeType::Arrow);
         assert_eq!(edges[1].edge_type, EdgeType::ThickArrow);
@@ -670,15 +666,21 @@ mod tests {
 
         parser.parse(input, &mut database).unwrap();
         assert_eq!(database.node_count(), 10);
-        
+
         assert_eq!(database.get_node("A").unwrap().shape, NodeShape::Rectangle);
-        assert_eq!(database.get_node("B").unwrap().shape, NodeShape::RoundedRect);
+        assert_eq!(
+            database.get_node("B").unwrap().shape,
+            NodeShape::RoundedRect
+        );
         assert_eq!(database.get_node("C").unwrap().shape, NodeShape::Diamond);
         assert_eq!(database.get_node("D").unwrap().shape, NodeShape::Circle);
         assert_eq!(database.get_node("E").unwrap().shape, NodeShape::Subroutine);
         assert_eq!(database.get_node("F").unwrap().shape, NodeShape::Hexagon);
         assert_eq!(database.get_node("G").unwrap().shape, NodeShape::Cylinder);
-        assert_eq!(database.get_node("H").unwrap().shape, NodeShape::Parallelogram);
+        assert_eq!(
+            database.get_node("H").unwrap().shape,
+            NodeShape::Parallelogram
+        );
         assert_eq!(database.get_node("I").unwrap().shape, NodeShape::Trapezoid);
         assert_eq!(database.get_node("J").unwrap().shape, NodeShape::Asymmetric);
     }
@@ -714,7 +716,12 @@ mod tests {
             let mut database = FlowchartDatabase::new();
             let input = format!("{}\n    A --> B", header);
             parser.parse(&input, &mut database).unwrap();
-            assert_eq!(database.direction(), expected_dir, "Failed for header: {}", header);
+            assert_eq!(
+                database.direction(),
+                expected_dir,
+                "Failed for header: {}",
+                header
+            );
         }
     }
 

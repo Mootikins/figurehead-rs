@@ -40,7 +40,11 @@ impl GitGraphSyntaxParser {
         // Extract type: VALUE
         if let Some(type_start) = line.find("type:") {
             let after_colon = &line[type_start + 5..].trim();
-            let type_value = after_colon.split_whitespace().next().unwrap_or("").to_uppercase();
+            let type_value = after_colon
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_uppercase();
             if !type_value.is_empty() {
                 commit_type = Some(type_value);
             }
@@ -65,12 +69,17 @@ impl SyntaxParser for GitGraphSyntaxParser {
         trace!("Parsing git graph syntax");
         let mut nodes = Vec::new();
         let mut current_branch = "main".to_string();
-        let mut branches: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut branches: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         branches.insert("main".to_string(), Vec::new());
         let mut commit_counter = 0;
 
         // Split input into lines
-        let lines: Vec<&str> = input.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+        let lines: Vec<&str> = input
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect();
 
         if lines.is_empty() {
             return Ok(nodes);
@@ -97,11 +106,11 @@ impl SyntaxParser for GitGraphSyntaxParser {
                 });
 
                 let commit_type_str = commit_type.unwrap_or_else(|| "NORMAL".to_string());
-                
+
                 let mut metadata = SyntaxMetadata::new()
                     .with_attr("type", "commit")
                     .with_attr("commit_type", &commit_type_str);
-                
+
                 if let Some(tag_val) = &tag {
                     metadata = metadata.with_attr("tag", tag_val);
                 }
@@ -162,14 +171,15 @@ impl SyntaxParser for GitGraphSyntaxParser {
                 let (last_merged_opt, prev_commit_opt) = {
                     let merged_commits = branches.get(&branch_name);
                     let last_merged = merged_commits.and_then(|c| c.last()).cloned();
-                    
-                    let prev_commit = branches.get(&current_branch)
+
+                    let prev_commit = branches
+                        .get(&current_branch)
                         .and_then(|c| if c.len() > 0 { c.last() } else { None })
                         .cloned();
-                    
+
                     (last_merged, prev_commit)
                 };
-                
+
                 if let Some(last_merged) = last_merged_opt {
                     // Create merge commit
                     commit_counter += 1;
@@ -181,8 +191,11 @@ impl SyntaxParser for GitGraphSyntaxParser {
                             .with_attr("type", "commit")
                             .with_attr("commit_type", "MERGE"),
                     });
-                    
-                    branches.get_mut(&current_branch).unwrap().push(merge_commit_id.clone());
+
+                    branches
+                        .get_mut(&current_branch)
+                        .unwrap()
+                        .push(merge_commit_id.clone());
 
                     // Edge from merged branch's last commit
                     nodes.push(SyntaxNode::Edge {
@@ -205,7 +218,11 @@ impl SyntaxParser for GitGraphSyntaxParser {
             }
         }
 
-        debug!(commit_count = commit_counter, branch_count = branches.len(), "Parsed git graph");
+        debug!(
+            commit_count = commit_counter,
+            branch_count = branches.len(),
+            "Parsed git graph"
+        );
         Ok(nodes)
     }
 
@@ -219,8 +236,9 @@ impl SyntaxParser for GitGraphSyntaxParser {
 
     fn can_parse(&self, input: &str) -> bool {
         let input_lower = input.to_lowercase();
-        input_lower.contains("gitgraph") || 
-        (input_lower.contains("commit") && (input_lower.contains("branch") || input_lower.contains("merge")))
+        input_lower.contains("gitgraph")
+            || (input_lower.contains("commit")
+                && (input_lower.contains("branch") || input_lower.contains("merge")))
     }
 }
 
@@ -239,15 +257,17 @@ mod tests {
         let parser = GitGraphSyntaxParser::new();
         let input = "gitGraph\n   commit\n   commit\n   commit";
         let nodes = parser.parse(input).unwrap();
-        
+
         // Should have 3 commits and 2 edges
-        let commit_nodes: Vec<_> = nodes.iter()
+        let commit_nodes: Vec<_> = nodes
+            .iter()
             .filter(|n| matches!(n, SyntaxNode::Node { .. }))
             .collect();
-        let edges: Vec<_> = nodes.iter()
+        let edges: Vec<_> = nodes
+            .iter()
             .filter(|n| matches!(n, SyntaxNode::Edge { .. }))
             .collect();
-        
+
         assert_eq!(commit_nodes.len(), 3);
         assert_eq!(edges.len(), 2);
     }
@@ -263,11 +283,12 @@ mod tests {
    commit
    commit"#;
         let nodes = parser.parse(input).unwrap();
-        
-        let commit_nodes: Vec<_> = nodes.iter()
+
+        let commit_nodes: Vec<_> = nodes
+            .iter()
             .filter(|n| matches!(n, SyntaxNode::Node { .. }))
             .collect();
-        
+
         assert!(commit_nodes.len() >= 4); // At least 4 commits
     }
 
@@ -282,11 +303,12 @@ mod tests {
    checkout main
    merge develop"#;
         let nodes = parser.parse(input).unwrap();
-        
-        let commit_nodes: Vec<_> = nodes.iter()
+
+        let commit_nodes: Vec<_> = nodes
+            .iter()
             .filter(|n| matches!(n, SyntaxNode::Node { .. }))
             .collect();
-        
+
         assert!(commit_nodes.len() >= 2);
     }
 

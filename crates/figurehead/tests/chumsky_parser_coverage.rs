@@ -1,8 +1,8 @@
 //! Tests for chumsky parser edge cases
 
 // Note: chumsky_parser is private, so we test through the public parser interface
-use figurehead::plugins::flowchart::FlowchartParser;
 use figurehead::core::{Database, Parser};
+use figurehead::plugins::flowchart::FlowchartParser;
 
 #[test]
 fn test_parse_edge_with_open_arrow() {

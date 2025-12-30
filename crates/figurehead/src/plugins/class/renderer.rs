@@ -5,8 +5,10 @@
 use anyhow::Result;
 use unicode_width::UnicodeWidthStr;
 
-use super::layout::{ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass, PositionedRelationship};
 use super::database::{ClassDatabase, RelationshipKind};
+use super::layout::{
+    ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass, PositionedRelationship,
+};
 
 /// ASCII canvas for rendering
 struct Canvas {
@@ -98,7 +100,7 @@ impl ClassRenderer {
 
         // Class name (centered) - clear content area first
         canvas.set(x, cy, VERTICAL);
-        canvas.draw_horizontal(x + 1, cy, w - 2, ' ');  // Clear content area
+        canvas.draw_horizontal(x + 1, cy, w - 2, ' '); // Clear content area
         canvas.draw_text_centered(x + 1, cy, w - 2, &class.name);
         canvas.set(x + w - 1, cy, VERTICAL);
         cy += 1;
@@ -114,7 +116,7 @@ impl ClassRenderer {
             // Attributes
             for attr in &class.attributes {
                 canvas.set(x, cy, VERTICAL);
-                canvas.draw_horizontal(x + 1, cy, w - 2, ' ');  // Clear content area
+                canvas.draw_horizontal(x + 1, cy, w - 2, ' '); // Clear content area
                 canvas.draw_text(x + 2, cy, attr);
                 canvas.set(x + w - 1, cy, VERTICAL);
                 cy += 1;
@@ -132,7 +134,7 @@ impl ClassRenderer {
             // Methods
             for method in &class.methods {
                 canvas.set(x, cy, VERTICAL);
-                canvas.draw_horizontal(x + 1, cy, w - 2, ' ');  // Clear content area
+                canvas.draw_horizontal(x + 1, cy, w - 2, ' '); // Clear content area
                 canvas.draw_text(x + 2, cy, method);
                 canvas.set(x + w - 1, cy, VERTICAL);
                 cy += 1;
@@ -213,7 +215,11 @@ impl ClassRenderer {
             canvas.set(rel.to_x.saturating_sub(1), y, arrow_char);
         } else {
             let x = rel.from_x;
-            canvas.set(x, rel.to_y.saturating_sub(1), if rel.to_y > rel.from_y { '▽' } else { '△' });
+            canvas.set(
+                x,
+                rel.to_y.saturating_sub(1),
+                if rel.to_y > rel.from_y { '▽' } else { '△' },
+            );
         }
     }
 
@@ -243,7 +249,11 @@ impl ClassRenderer {
         }
 
         // Add extra space for relationship lines
-        let extra_height = if layout.relationships.is_empty() { 0 } else { 2 };
+        let extra_height = if layout.relationships.is_empty() {
+            0
+        } else {
+            2
+        };
         let mut canvas = Canvas::new(layout.width + 1, layout.height + extra_height + 1);
 
         // Draw relationship lines first
@@ -285,8 +295,8 @@ impl Default for ClassRenderer {
 
 #[cfg(test)]
 mod tests {
+    use super::super::database::{Class, Classifier, Member, Visibility};
     use super::*;
-    use super::super::database::{Class, Member, Visibility, Classifier};
 
     #[test]
     fn test_render_empty() {
@@ -397,7 +407,12 @@ mod tests {
         let mut db = ClassDatabase::new();
         db.add_class(Class::new("Animal")).unwrap();
         db.add_class(Class::new("Dog")).unwrap();
-        db.add_relationship(Relationship::new("Animal", "Dog", RelationshipKind::Inheritance)).unwrap();
+        db.add_relationship(Relationship::new(
+            "Animal",
+            "Dog",
+            RelationshipKind::Inheritance,
+        ))
+        .unwrap();
 
         let renderer = ClassRenderer::new();
         let result = renderer.render_database(&db).unwrap();
@@ -416,7 +431,12 @@ mod tests {
         let mut db = ClassDatabase::new();
         db.add_class(Class::new("Person")).unwrap();
         db.add_class(Class::new("Heart")).unwrap();
-        db.add_relationship(Relationship::new("Person", "Heart", RelationshipKind::Composition)).unwrap();
+        db.add_relationship(Relationship::new(
+            "Person",
+            "Heart",
+            RelationshipKind::Composition,
+        ))
+        .unwrap();
 
         let renderer = ClassRenderer::new();
         let result = renderer.render_database(&db).unwrap();
@@ -434,8 +454,9 @@ mod tests {
         db.add_class(Class::new("Order")).unwrap();
         db.add_relationship(
             Relationship::new("Customer", "Order", RelationshipKind::Association)
-                .with_label("places")
-        ).unwrap();
+                .with_label("places"),
+        )
+        .unwrap();
 
         let renderer = ClassRenderer::new();
         let result = renderer.render_database(&db).unwrap();

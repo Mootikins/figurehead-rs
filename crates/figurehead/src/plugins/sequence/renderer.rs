@@ -18,7 +18,11 @@ struct Canvas {
 impl Canvas {
     fn new(width: usize, height: usize) -> Self {
         let grid = vec![vec![' '; width.max(1)]; height.max(1)];
-        Self { width, height, grid }
+        Self {
+            width,
+            height,
+            grid,
+        }
     }
 
     fn set_char(&mut self, x: usize, y: usize, c: char) {
@@ -43,9 +47,17 @@ impl Canvas {
     fn draw_horizontal_line(&mut self, x1: usize, x2: usize, y: usize, solid: bool, unicode: bool) {
         let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
         let line_char = if solid {
-            if unicode { '─' } else { '-' }
+            if unicode {
+                '─'
+            } else {
+                '-'
+            }
         } else {
-            if unicode { '╌' } else { '-' }
+            if unicode {
+                '╌'
+            } else {
+                '-'
+            }
         };
 
         for x in start..=end {
@@ -165,13 +177,25 @@ impl SequenceRenderer {
         let (arrow_char, arrow_offset) = match head {
             ArrowHead::Arrow => {
                 if unicode {
-                    if going_right { ('▶', 0) } else { ('◀', 0) }
+                    if going_right {
+                        ('▶', 0)
+                    } else {
+                        ('◀', 0)
+                    }
                 } else {
-                    if going_right { ('>', 0) } else { ('<', 0) }
+                    if going_right {
+                        ('>', 0)
+                    } else {
+                        ('<', 0)
+                    }
                 }
             }
             ArrowHead::Open => {
-                if going_right { (')', 0) } else { ('(', 0) }
+                if going_right {
+                    (')', 0)
+                } else {
+                    ('(', 0)
+                }
             }
             ArrowHead::None => {
                 (' ', 1) // No arrow, just line
@@ -280,13 +304,14 @@ impl crate::core::Renderer<SequenceDatabase> for SequenceRenderer {
 
 #[cfg(test)]
 mod tests {
+    use super::super::database::{ArrowType, Message, Participant};
     use super::*;
-    use super::super::database::{Message, Participant, ArrowType};
 
     #[test]
     fn test_render_single_message() {
         let mut db = SequenceDatabase::new();
-        db.add_message(Message::new("Alice", "Bob", "Hello")).unwrap();
+        db.add_message(Message::new("Alice", "Bob", "Hello"))
+            .unwrap();
 
         let renderer = SequenceRenderer::new();
         let output = renderer.render(&db).unwrap();
@@ -300,7 +325,8 @@ mod tests {
     #[test]
     fn test_render_multiple_messages() {
         let mut db = SequenceDatabase::new();
-        db.add_message(Message::new("Alice", "Bob", "Hello")).unwrap();
+        db.add_message(Message::new("Alice", "Bob", "Hello"))
+            .unwrap();
         db.add_message(Message::new("Bob", "Alice", "Hi")).unwrap();
 
         let renderer = SequenceRenderer::new();
@@ -313,8 +339,10 @@ mod tests {
     #[test]
     fn test_render_with_alias() {
         let mut db = SequenceDatabase::new();
-        db.add_participant(Participant::with_label("A", "Alice")).unwrap();
-        db.add_participant(Participant::with_label("B", "Bob")).unwrap();
+        db.add_participant(Participant::with_label("A", "Alice"))
+            .unwrap();
+        db.add_participant(Participant::with_label("B", "Bob"))
+            .unwrap();
         db.add_message(Message::new("A", "B", "Hi")).unwrap();
 
         let renderer = SequenceRenderer::new();
@@ -337,8 +365,7 @@ mod tests {
     #[test]
     fn test_render_dotted_arrow() {
         let mut db = SequenceDatabase::new();
-        let msg = Message::new("Alice", "Bob", "Response")
-            .with_arrow(ArrowType::dotted_arrow());
+        let msg = Message::new("Alice", "Bob", "Response").with_arrow(ArrowType::dotted_arrow());
         db.add_message(msg).unwrap();
 
         let renderer = SequenceRenderer::new();

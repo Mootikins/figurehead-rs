@@ -1,7 +1,7 @@
 //! Tests for git graph renderer edge cases
 
+use figurehead::core::{CharacterSet, Database, Direction, LayoutAlgorithm, Parser, Renderer};
 use figurehead::plugins::gitgraph::*;
-use figurehead::core::{CharacterSet, Database, Direction, Parser, Renderer, LayoutAlgorithm};
 
 #[test]
 fn test_gitgraph_renderer_horizontal_layout() {
@@ -9,7 +9,7 @@ fn test_gitgraph_renderer_horizontal_layout() {
     db.add_commit("c1", Some("First")).unwrap();
     db.add_commit("c2", Some("Second")).unwrap();
     db.add_parent_edge("c2", "c1").unwrap();
-    
+
     let renderer = GitGraphRenderer::new();
     let result = renderer.render(&db).unwrap();
     assert!(!result.is_empty());
@@ -21,7 +21,7 @@ fn test_gitgraph_renderer_bottom_up_layout() {
     db.add_commit("c1", Some("First")).unwrap();
     db.add_commit("c2", Some("Second")).unwrap();
     db.add_parent_edge("c2", "c1").unwrap();
-    
+
     let renderer = GitGraphRenderer::new();
     let result = renderer.render(&db).unwrap();
     assert!(!result.is_empty());
@@ -33,7 +33,7 @@ fn test_gitgraph_renderer_right_left_layout() {
     db.add_commit("c1", Some("First")).unwrap();
     db.add_commit("c2", Some("Second")).unwrap();
     db.add_parent_edge("c2", "c1").unwrap();
-    
+
     let renderer = GitGraphRenderer::new();
     let result = renderer.render(&db).unwrap();
     assert!(!result.is_empty());
@@ -47,7 +47,7 @@ fn test_gitgraph_renderer_multiple_commits() {
     db.add_commit("c3", Some("Fix")).unwrap();
     db.add_parent_edge("c2", "c1").unwrap();
     db.add_parent_edge("c3", "c2").unwrap();
-    
+
     let renderer = GitGraphRenderer::new();
     let result = renderer.render(&db).unwrap();
     assert!(!result.is_empty());
@@ -70,7 +70,7 @@ fn test_gitgraph_canvas_edge_cases() {
     db.add_commit("c3", Some("C")).unwrap();
     db.add_parent_edge("c2", "c1").unwrap();
     db.add_parent_edge("c3", "c2").unwrap();
-    
+
     let renderer = GitGraphRenderer::new();
     let result = renderer.render(&db).unwrap();
     assert!(!result.is_empty());

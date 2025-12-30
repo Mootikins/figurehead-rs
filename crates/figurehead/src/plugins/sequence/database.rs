@@ -2,8 +2,8 @@
 //!
 //! Stores participants and messages for sequence diagrams.
 
-use anyhow::Result;
 use crate::core::Database;
+use anyhow::Result;
 
 /// Line style for message arrows
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,19 +32,31 @@ pub struct ArrowType {
 
 impl ArrowType {
     pub fn solid_arrow() -> Self {
-        Self { line: LineStyle::Solid, head: ArrowHead::Arrow }
+        Self {
+            line: LineStyle::Solid,
+            head: ArrowHead::Arrow,
+        }
     }
 
     pub fn dotted_arrow() -> Self {
-        Self { line: LineStyle::Dotted, head: ArrowHead::Arrow }
+        Self {
+            line: LineStyle::Dotted,
+            head: ArrowHead::Arrow,
+        }
     }
 
     pub fn solid_open() -> Self {
-        Self { line: LineStyle::Solid, head: ArrowHead::None }
+        Self {
+            line: LineStyle::Solid,
+            head: ArrowHead::None,
+        }
     }
 
     pub fn dotted_open() -> Self {
-        Self { line: LineStyle::Dotted, head: ArrowHead::None }
+        Self {
+            line: LineStyle::Dotted,
+            head: ArrowHead::None,
+        }
     }
 }
 
@@ -66,11 +78,17 @@ pub struct Participant {
 impl Participant {
     pub fn new(id: impl Into<String>) -> Self {
         let id = id.into();
-        Self { label: id.clone(), id }
+        Self {
+            label: id.clone(),
+            id,
+        }
     }
 
     pub fn with_label(id: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { id: id.into(), label: label.into() }
+        Self {
+            id: id.into(),
+            label: label.into(),
+        }
     }
 }
 
@@ -125,8 +143,14 @@ pub enum BlockKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SequenceItem {
     Message(Message),
-    BlockStart { kind: BlockKind, label: String, depth: usize },
-    BlockEnd { depth: usize },
+    BlockStart {
+        kind: BlockKind,
+        label: String,
+        depth: usize,
+    },
+    BlockEnd {
+        depth: usize,
+    },
 }
 
 /// Sequence diagram database
@@ -179,11 +203,9 @@ impl SequenceDatabase {
 
     /// Get only messages (filtering out block markers)
     pub fn messages(&self) -> impl Iterator<Item = &Message> {
-        self.items.iter().filter_map(|item| {
-            match item {
-                SequenceItem::Message(m) => Some(m),
-                _ => None,
-            }
+        self.items.iter().filter_map(|item| match item {
+            SequenceItem::Message(m) => Some(m),
+            _ => None,
         })
     }
 
@@ -272,7 +294,8 @@ mod tests {
     #[test]
     fn test_add_message_creates_implicit_participants() {
         let mut db = SequenceDatabase::new();
-        db.add_message(Message::new("Alice", "Bob", "Hello")).unwrap();
+        db.add_message(Message::new("Alice", "Bob", "Hello"))
+            .unwrap();
         assert_eq!(db.participant_count(), 2);
         assert_eq!(db.message_count(), 1);
     }
@@ -290,7 +313,8 @@ mod tests {
     #[test]
     fn test_participant_with_alias() {
         let mut db = SequenceDatabase::new();
-        db.add_participant(Participant::with_label("A", "Alice")).unwrap();
+        db.add_participant(Participant::with_label("A", "Alice"))
+            .unwrap();
         assert_eq!(db.participants()[0].id, "A");
         assert_eq!(db.participants()[0].label, "Alice");
     }

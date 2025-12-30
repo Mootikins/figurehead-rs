@@ -31,10 +31,14 @@ impl GitGraphDatabase {
         }
     }
 
-    pub fn add_commit(&mut self, id: impl Into<String>, message: Option<impl Into<String>>) -> Result<()> {
+    pub fn add_commit(
+        &mut self,
+        id: impl Into<String>,
+        message: Option<impl Into<String>>,
+    ) -> Result<()> {
         let id = id.into();
         let label = message.map(|m| m.into()).unwrap_or_else(|| id.clone());
-        
+
         if self.nodes.contains_key(&id) {
             return Ok(()); // Already exists
         }
@@ -45,7 +49,11 @@ impl GitGraphDatabase {
         Ok(())
     }
 
-    pub fn add_parent_edge(&mut self, child: impl Into<String>, parent: impl Into<String>) -> Result<()> {
+    pub fn add_parent_edge(
+        &mut self,
+        child: impl Into<String>,
+        parent: impl Into<String>,
+    ) -> Result<()> {
         let child = child.into();
         let parent = parent.into();
 
@@ -187,7 +195,10 @@ impl GitGraphDatabase {
 
         for edge in &self.edges {
             *in_degree.get_mut(edge.to.as_str()).unwrap() += 1;
-            adjacency.get_mut(edge.from.as_str()).unwrap().push(edge.to.as_str());
+            adjacency
+                .get_mut(edge.from.as_str())
+                .unwrap()
+                .push(edge.to.as_str());
         }
 
         // Find all nodes with in-degree 0 (sorted for deterministic output)
@@ -219,7 +230,9 @@ impl GitGraphDatabase {
         }
 
         // Add any remaining nodes (cycles) in sorted order for determinism
-        let mut remaining: Vec<&str> = self.nodes.keys()
+        let mut remaining: Vec<&str> = self
+            .nodes
+            .keys()
             .map(|s| s.as_str())
             .filter(|id| !result.contains(id))
             .collect();

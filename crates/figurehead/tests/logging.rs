@@ -3,18 +3,15 @@
 //! These tests verify that logging initialization works correctly
 //! with different configurations.
 
-use std::str::FromStr;
 use figurehead::core::logging::{init_logging, LogFormat};
+use std::str::FromStr;
 
 #[test]
 fn test_log_format_parsing() {
     assert_eq!(LogFormat::from_str("compact").unwrap(), LogFormat::Compact);
     assert_eq!(LogFormat::from_str("pretty").unwrap(), LogFormat::Pretty);
     assert_eq!(LogFormat::from_str("json").unwrap(), LogFormat::Json);
-    assert_eq!(
-        LogFormat::from_str("COMPACT").unwrap(),
-        LogFormat::Compact
-    );
+    assert_eq!(LogFormat::from_str("COMPACT").unwrap(), LogFormat::Compact);
     assert!(LogFormat::from_str("invalid").is_err());
 }
 
@@ -31,7 +28,7 @@ fn test_init_logging_with_levels() {
     // Test that we can initialize with different log levels
     // Note: We can't easily test the actual output without capturing stdout,
     // but we can verify initialization doesn't panic
-    
+
     // These should all succeed (or fail gracefully if already initialized)
     let _ = init_logging(Some("trace"), Some("compact"));
     let _ = init_logging(Some("debug"), Some("compact"));

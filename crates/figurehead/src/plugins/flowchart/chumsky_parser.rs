@@ -464,39 +464,93 @@ mod tests {
 
         // Rectangle
         let stmt = parser.parse_statement("A[Label]").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Rectangle, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Rectangle,
+                ..
+            })
+        ));
 
         // Rounded
         let stmt = parser.parse_statement("B(Label)").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::RoundedRect, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::RoundedRect,
+                ..
+            })
+        ));
 
         // Diamond
         let stmt = parser.parse_statement("C{Label}").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Diamond, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Diamond,
+                ..
+            })
+        ));
 
         // Circle
         let stmt = parser.parse_statement("D((Label))").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Circle, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Circle,
+                ..
+            })
+        ));
 
         // Subroutine
         let stmt = parser.parse_statement("E[[Label]]").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Subroutine, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Subroutine,
+                ..
+            })
+        ));
 
         // Hexagon
         let stmt = parser.parse_statement("F{{Label}}").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Hexagon, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Hexagon,
+                ..
+            })
+        ));
 
         // Cylinder
         let stmt = parser.parse_statement("G[(Label)]").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Cylinder, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Cylinder,
+                ..
+            })
+        ));
 
         // Parallelogram
         let stmt = parser.parse_statement("H[/Label/]").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Parallelogram, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Parallelogram,
+                ..
+            })
+        ));
 
         // Trapezoid
         let stmt = parser.parse_statement("I[/Label\\]").unwrap();
-        assert!(matches!(stmt, Statement::Node(Node { shape: NodeShape::Trapezoid, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Node(Node {
+                shape: NodeShape::Trapezoid,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -577,39 +631,93 @@ mod tests {
 
         // Arrow
         let stmt = parser.parse_statement("A --> B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::Arrow, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::Arrow,
+                ..
+            })
+        ));
 
         // Thick arrow
         let stmt = parser.parse_statement("A ==> B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::ThickArrow, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::ThickArrow,
+                ..
+            })
+        ));
 
         // Line
         let stmt = parser.parse_statement("A --- B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::Line, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::Line,
+                ..
+            })
+        ));
 
         // Dotted line
         let stmt = parser.parse_statement("A -.- B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::DottedLine, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::DottedLine,
+                ..
+            })
+        ));
 
         // Dotted arrow
         let stmt = parser.parse_statement("A -.-> B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::DottedArrow, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::DottedArrow,
+                ..
+            })
+        ));
 
         // Invisible
         let stmt = parser.parse_statement("A ~~~ B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::Invisible, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::Invisible,
+                ..
+            })
+        ));
 
         // Open arrow
         let stmt = parser.parse_statement("A --o B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::OpenArrow, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::OpenArrow,
+                ..
+            })
+        ));
 
         // Cross arrow
         let stmt = parser.parse_statement("A --x B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::CrossArrow, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::CrossArrow,
+                ..
+            })
+        ));
 
         // Thick line
         let stmt = parser.parse_statement("A === B").unwrap();
-        assert!(matches!(stmt, Statement::Edge(Edge { edge_type: EdgeType::ThickLine, .. })));
+        assert!(matches!(
+            stmt,
+            Statement::Edge(Edge {
+                edge_type: EdgeType::ThickLine,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -648,7 +756,7 @@ mod tests {
         // Node ID alone should work (no label)
         // But node with empty label brackets should fail (label parser requires at least 1 char)
         assert!(parser.parse_statement("A[]").is_err());
-        
+
         // Node ID without brackets should work (implicit label = ID)
         // However, parse_statement expects a full statement, so just ID won't parse as a node
         // Let's test that a node with a valid label works

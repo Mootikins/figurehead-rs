@@ -14,7 +14,12 @@ fn workspace_root() -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::current_dir().unwrap());
-    manifest_dir.parent().unwrap().parent().unwrap().to_path_buf()
+    manifest_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 /// Directory for visual test outputs
@@ -171,14 +176,32 @@ fn test_generate_manifest() {
     let manifest_path = visual_output_dir().join("manifest.json");
 
     let tests = vec![
-        ("simple_chain_lr.png", "Horizontal chain A->B->C, boxes should align horizontally on same row"),
-        ("simple_chain_td.png", "Vertical chain A->B->C, boxes should stack vertically in a column"),
-        ("diamond_decision.png", "Decision diamond with Yes/No branches, diamond should be symmetric"),
-        ("all_shapes.png", "Gallery of all node shapes in horizontal layout"),
+        (
+            "simple_chain_lr.png",
+            "Horizontal chain A->B->C, boxes should align horizontally on same row",
+        ),
+        (
+            "simple_chain_td.png",
+            "Vertical chain A->B->C, boxes should stack vertically in a column",
+        ),
+        (
+            "diamond_decision.png",
+            "Decision diamond with Yes/No branches, diamond should be symmetric",
+        ),
+        (
+            "all_shapes.png",
+            "Gallery of all node shapes in horizontal layout",
+        ),
         ("style_ascii.png", "ASCII style using +/-/| characters"),
-        ("style_unicode.png", "Unicode style with box-drawing characters"),
+        (
+            "style_unicode.png",
+            "Unicode style with box-drawing characters",
+        ),
         ("style_compact.png", "Compact style with minimal spacing"),
-        ("style_unicode-math.png", "Unicode-math style with mathematical symbols"),
+        (
+            "style_unicode-math.png",
+            "Unicode-math style with mathematical symbols",
+        ),
     ];
 
     let manifest: serde_json::Value = serde_json::json!({
@@ -199,8 +222,11 @@ fn test_generate_manifest() {
         }).collect::<Vec<_>>()
     });
 
-    std::fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).unwrap())
-        .expect("Should write manifest");
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_string_pretty(&manifest).unwrap(),
+    )
+    .expect("Should write manifest");
 
     println!("Generated manifest: {}", manifest_path.display());
 }

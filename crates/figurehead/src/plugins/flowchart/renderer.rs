@@ -6,7 +6,9 @@ use anyhow::Result;
 use tracing::{debug, info, span, trace, Level};
 
 use super::{FlowchartDatabase, FlowchartLayoutAlgorithm, PositionedNode, PositionedSubgraph};
-use crate::core::{CharacterSet, Database, DiamondStyle, EdgeType, LayoutAlgorithm, NodeShape, Renderer};
+use crate::core::{
+    CharacterSet, Database, DiamondStyle, EdgeType, LayoutAlgorithm, NodeShape, Renderer,
+};
 
 /// ASCII canvas representing the final diagram
 #[derive(Debug, Clone)]
@@ -181,7 +183,10 @@ impl FlowchartRenderer {
 
     /// Create a new renderer with specific character set and diamond style
     pub fn with_styles(style: CharacterSet, diamond_style: DiamondStyle) -> Self {
-        Self { style, diamond_style }
+        Self {
+            style,
+            diamond_style,
+        }
     }
 
     /// Create a new renderer with a render config
@@ -259,9 +264,7 @@ impl FlowchartRenderer {
             }
             NodeShape::Diamond => self.draw_diamond(canvas, node, label),
             NodeShape::Circle => self.draw_circle(canvas, node, label),
-            NodeShape::Hexagon => {
-                self.draw_hexagon(canvas, node, label)
-            }
+            NodeShape::Hexagon => self.draw_hexagon(canvas, node, label),
             NodeShape::Asymmetric => self.draw_asymmetric(canvas, node, label),
             NodeShape::Cylinder => self.draw_cylinder(canvas, node, label),
             NodeShape::Parallelogram => self.draw_parallelogram(canvas, node, label),
@@ -296,25 +299,27 @@ impl FlowchartRenderer {
             let left_dashes = remaining / 2;
             let right_dashes = remaining - left_dashes;
 
-            let dash_char = if self.style == CharacterSet::Ascii || self.style == CharacterSet::Compact {
-                '-'
-            } else {
-                '─'
-            };
+            let dash_char =
+                if self.style == CharacterSet::Ascii || self.style == CharacterSet::Compact {
+                    '-'
+                } else {
+                    '─'
+                };
 
             format!(
                 "{} {} {}",
-                std::iter::repeat(dash_char).take(left_dashes).collect::<String>(),
+                std::iter::repeat(dash_char)
+                    .take(left_dashes)
+                    .collect::<String>(),
                 title,
-                std::iter::repeat(dash_char).take(right_dashes).collect::<String>()
+                std::iter::repeat(dash_char)
+                    .take(right_dashes)
+                    .collect::<String>()
             )
         } else {
             // Title too long, truncate if needed
             let truncated: String = title.chars().take(total_dashes.saturating_sub(2)).collect();
-            format!(
-                " {} ",
-                truncated
-            )
+            format!(" {} ", truncated)
         };
 
         // Top border with title
@@ -874,25 +879,41 @@ impl FlowchartRenderer {
         if y1 == y2 {
             // Pure horizontal - adjust endpoint for arrow
             let end_x = if has_arrow {
-                if x2 > x1 { x2.saturating_sub(1) } else { x2 + 1 }
+                if x2 > x1 {
+                    x2.saturating_sub(1)
+                } else {
+                    x2 + 1
+                }
             } else {
                 x2
             };
             self.draw_horizontal_line(canvas, y1, x1, end_x, &chars);
             if has_arrow {
-                let arrow = if x2 > x1 { chars.arrow_right } else { chars.arrow_left };
+                let arrow = if x2 > x1 {
+                    chars.arrow_right
+                } else {
+                    chars.arrow_left
+                };
                 canvas.set_char(end_x, y1, arrow);
             }
         } else if x1 == x2 {
             // Pure vertical - adjust endpoint for arrow
             let end_y = if has_arrow {
-                if y2 > y1 { y2.saturating_sub(1) } else { y2 + 1 }
+                if y2 > y1 {
+                    y2.saturating_sub(1)
+                } else {
+                    y2 + 1
+                }
             } else {
                 y2
             };
             self.draw_vertical_line(canvas, x1, y1, end_y, &chars);
             if has_arrow {
-                let arrow = if y2 > y1 { chars.arrow_down } else { chars.arrow_up };
+                let arrow = if y2 > y1 {
+                    chars.arrow_down
+                } else {
+                    chars.arrow_up
+                };
                 canvas.set_char(x1, end_y, arrow);
             }
         } else {
@@ -900,7 +921,11 @@ impl FlowchartRenderer {
             // For edges going right then down/up, place turn point 1 col before target
             // to leave room for the arrow to connect to the node's side
             let mid_y = y1;
-            let turn_x = if x2 > x1 { x2.saturating_sub(1) } else { x2 + 1 };
+            let turn_x = if x2 > x1 {
+                x2.saturating_sub(1)
+            } else {
+                x2 + 1
+            };
 
             // Horizontal segment to turn point
             self.draw_horizontal_line(canvas, mid_y, x1, turn_x, &chars);
@@ -909,9 +934,17 @@ impl FlowchartRenderer {
             let corner = if self.style.is_ascii() {
                 '+'
             } else if x2 > x1 {
-                if y2 > y1 { '┐' } else { '┘' }
+                if y2 > y1 {
+                    '┐'
+                } else {
+                    '┘'
+                }
             } else {
-                if y2 > y1 { '┌' } else { '└' }
+                if y2 > y1 {
+                    '┌'
+                } else {
+                    '└'
+                }
             };
             canvas.set_char(turn_x, mid_y, corner);
 
@@ -920,7 +953,11 @@ impl FlowchartRenderer {
 
             // Arrow pointing horizontally into target node
             if has_arrow {
-                let arrow = if x2 > x1 { chars.arrow_right } else { chars.arrow_left };
+                let arrow = if x2 > x1 {
+                    chars.arrow_right
+                } else {
+                    chars.arrow_left
+                };
                 canvas.set_char(turn_x, y2, arrow);
             }
         }
@@ -1008,10 +1045,34 @@ impl FlowchartRenderer {
         // LeftRight: line comes from LEFT, splits UP/DOWN → ┤
         // RightLeft: line comes from RIGHT, splits UP/DOWN → ├
         let junction_char = match direction {
-            crate::core::Direction::TopDown => if self.style.is_ascii() { '+' } else { '┴' },
-            crate::core::Direction::BottomUp => if self.style.is_ascii() { '+' } else { '┬' },
-            crate::core::Direction::LeftRight => if self.style.is_ascii() { '+' } else { '┤' },
-            crate::core::Direction::RightLeft => if self.style.is_ascii() { '+' } else { '├' },
+            crate::core::Direction::TopDown => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '┴'
+                }
+            }
+            crate::core::Direction::BottomUp => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '┬'
+                }
+            }
+            crate::core::Direction::LeftRight => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '┤'
+                }
+            }
+            crate::core::Direction::RightLeft => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '├'
+                }
+            }
         };
         canvas.set_char(jx, jy, junction_char);
     }
@@ -1042,7 +1103,13 @@ impl FlowchartRenderer {
                 // Horizontal from junction toward target
                 let corner_x = tx;
                 if corner_x != jx {
-                    self.draw_horizontal_line(canvas, jy, jx.min(corner_x), jx.max(corner_x), &chars);
+                    self.draw_horizontal_line(
+                        canvas,
+                        jy,
+                        jx.min(corner_x),
+                        jx.max(corner_x),
+                        &chars,
+                    );
                 }
                 // Corner: line comes from junction (horizontal), goes down (vertical)
                 // tx < jx: corner is left of junction, line comes from RIGHT, goes DOWN → ┌
@@ -1071,7 +1138,13 @@ impl FlowchartRenderer {
                 self.draw_vertical_line(canvas, fx, jy, fy, &chars);
                 let corner_x = tx;
                 if corner_x != jx {
-                    self.draw_horizontal_line(canvas, jy, jx.min(corner_x), jx.max(corner_x), &chars);
+                    self.draw_horizontal_line(
+                        canvas,
+                        jy,
+                        jx.min(corner_x),
+                        jx.max(corner_x),
+                        &chars,
+                    );
                 }
                 // Corner: line comes from junction (horizontal), goes up (vertical)
                 // tx < jx: corner is left of junction, line comes from RIGHT, goes UP → └
@@ -1169,10 +1242,34 @@ impl FlowchartRenderer {
         // LeftRight: lines come from LEFT (multiple), merge goes RIGHT → ├
         // RightLeft: lines come from RIGHT (multiple), merge goes LEFT → ┤
         let junction_char = match direction {
-            crate::core::Direction::TopDown => if self.style.is_ascii() { '+' } else { '┬' },
-            crate::core::Direction::BottomUp => if self.style.is_ascii() { '+' } else { '┴' },
-            crate::core::Direction::LeftRight => if self.style.is_ascii() { '+' } else { '├' },
-            crate::core::Direction::RightLeft => if self.style.is_ascii() { '+' } else { '┤' },
+            crate::core::Direction::TopDown => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '┬'
+                }
+            }
+            crate::core::Direction::BottomUp => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '┴'
+                }
+            }
+            crate::core::Direction::LeftRight => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '├'
+                }
+            }
+            crate::core::Direction::RightLeft => {
+                if self.style.is_ascii() {
+                    '+'
+                } else {
+                    '┤'
+                }
+            }
         };
         canvas.set_char(jx, jy, junction_char);
     }
@@ -1193,7 +1290,7 @@ impl FlowchartRenderer {
 
         let (fx, fy) = from_center;
         let (mx, my) = merge_junction;
-        let (_tx, _ty) = to_center;  // Used only for context in some directions
+        let (_tx, _ty) = to_center; // Used only for context in some directions
 
         match direction {
             crate::core::Direction::TopDown => {
@@ -1207,9 +1304,9 @@ impl FlowchartRenderer {
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if fx < mx {
-                    '└'  // coming from above, going right
+                    '└' // coming from above, going right
                 } else if fx > mx {
-                    '┘'  // coming from above, going left
+                    '┘' // coming from above, going left
                 } else {
                     '│'
                 };
@@ -1219,7 +1316,13 @@ impl FlowchartRenderer {
 
                 // Horizontal to merge junction
                 if corner_x != mx {
-                    self.draw_horizontal_line(canvas, corner_y, corner_x.min(mx), corner_x.max(mx), &chars);
+                    self.draw_horizontal_line(
+                        canvas,
+                        corner_y,
+                        corner_x.min(mx),
+                        corner_x.max(mx),
+                        &chars,
+                    );
                 }
             }
             crate::core::Direction::BottomUp => {
@@ -1231,15 +1334,21 @@ impl FlowchartRenderer {
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if fx < mx {
-                    '┌'  // coming from below, going right
+                    '┌' // coming from below, going right
                 } else if fx > mx {
-                    '┐'  // coming from below, going left
+                    '┐' // coming from below, going left
                 } else {
                     '│'
                 };
                 if corner_x != mx {
                     canvas.set_char(corner_x, corner_y, corner);
-                    self.draw_horizontal_line(canvas, corner_y, corner_x.min(mx), corner_x.max(mx), &chars);
+                    self.draw_horizontal_line(
+                        canvas,
+                        corner_y,
+                        corner_x.min(mx),
+                        corner_x.max(mx),
+                        &chars,
+                    );
                 }
             }
             crate::core::Direction::LeftRight => {
@@ -1254,9 +1363,9 @@ impl FlowchartRenderer {
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if fy < my {
-                    '┐'  // coming from left, going down
+                    '┐' // coming from left, going down
                 } else if fy > my {
-                    '┘'  // coming from left, going up
+                    '┘' // coming from left, going up
                 } else {
                     '─'
                 };
@@ -1266,7 +1375,13 @@ impl FlowchartRenderer {
 
                 // Vertical to merge junction
                 if corner_y != my {
-                    self.draw_vertical_line(canvas, corner_x, corner_y.min(my), corner_y.max(my), &chars);
+                    self.draw_vertical_line(
+                        canvas,
+                        corner_x,
+                        corner_y.min(my),
+                        corner_y.max(my),
+                        &chars,
+                    );
                 }
             }
             crate::core::Direction::RightLeft => {
@@ -1279,15 +1394,21 @@ impl FlowchartRenderer {
                 let corner = if self.style.is_ascii() {
                     '+'
                 } else if fy < my {
-                    '┌'  // coming from right, going down
+                    '┌' // coming from right, going down
                 } else if fy > my {
-                    '└'  // coming from right, going up
+                    '└' // coming from right, going up
                 } else {
                     '─'
                 };
                 if corner_y != my {
                     canvas.set_char(corner_x, corner_y, corner);
-                    self.draw_vertical_line(canvas, corner_x, corner_y.min(my), corner_y.max(my), &chars);
+                    self.draw_vertical_line(
+                        canvas,
+                        corner_x,
+                        corner_y.min(my),
+                        corner_y.max(my),
+                        &chars,
+                    );
                 }
             }
         }
@@ -1352,7 +1473,15 @@ impl FlowchartRenderer {
     ) {
         let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
         let going_right = x2 > x1;
-        let junction_t = if self.style.is_ascii() { '+' } else { if going_right { '├' } else { '┤' } };
+        let junction_t = if self.style.is_ascii() {
+            '+'
+        } else {
+            if going_right {
+                '├'
+            } else {
+                '┤'
+            }
+        };
         let junction_cross = if self.style.is_ascii() { '+' } else { '┼' };
 
         for x in start..=end {
@@ -1370,7 +1499,9 @@ impl FlowchartRenderer {
                         junction_cross // True crossing in the middle
                     }
                 }
-                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '+' => existing, // Keep existing junctions
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '+' => {
+                    existing
+                } // Keep existing junctions
                 _ => chars.horizontal,
             };
             canvas.set_char(x, y, new_char);
@@ -1387,7 +1518,15 @@ impl FlowchartRenderer {
     ) {
         let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
         let going_down = y2 > y1;
-        let junction_t = if self.style.is_ascii() { '+' } else { if going_down { '┬' } else { '┴' } };
+        let junction_t = if self.style.is_ascii() {
+            '+'
+        } else {
+            if going_down {
+                '┬'
+            } else {
+                '┴'
+            }
+        };
         let junction_cross = if self.style.is_ascii() { '+' } else { '┼' };
 
         for y in start..=end {
@@ -1405,13 +1544,14 @@ impl FlowchartRenderer {
                         junction_cross // True crossing in the middle
                     }
                 }
-                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '+' => existing, // Keep existing junctions
+                '┌' | '┐' | '└' | '┘' | '├' | '┤' | '┬' | '┴' | '┼' | '+' => {
+                    existing
+                } // Keep existing junctions
                 _ => chars.vertical,
             };
             canvas.set_char(x, y, new_char);
         }
     }
-
 }
 
 /// Edge drawing characters
@@ -1547,14 +1687,23 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
         }
 
         // Create canvas
-        let canvas_span = span!(Level::DEBUG, "create_canvas", width = layout.width, height = layout.height);
+        let canvas_span = span!(
+            Level::DEBUG,
+            "create_canvas",
+            width = layout.width,
+            height = layout.height
+        );
         let _canvas_enter = canvas_span.enter();
         let mut canvas = AsciiCanvas::new(layout.width, layout.height);
         debug!("Created ASCII canvas");
         drop(_canvas_enter);
 
         // Draw subgraphs first (background layer)
-        let subgraph_span = span!(Level::DEBUG, "draw_subgraphs", subgraph_count = layout.subgraphs.len());
+        let subgraph_span = span!(
+            Level::DEBUG,
+            "draw_subgraphs",
+            subgraph_count = layout.subgraphs.len()
+        );
         let _subgraph_enter = subgraph_span.enter();
         for subgraph in &layout.subgraphs {
             trace!(
@@ -1577,9 +1726,11 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
         let mut edges_drawn = 0;
 
         // Track which junctions we've drawn (split junctions)
-        let mut drawn_split_junctions: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+        let mut drawn_split_junctions: std::collections::HashSet<(usize, usize)> =
+            std::collections::HashSet::new();
         // Track which merge junctions we've drawn and drawn the final segment for
-        let mut drawn_merge_junctions: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+        let mut drawn_merge_junctions: std::collections::HashSet<(usize, usize)> =
+            std::collections::HashSet::new();
 
         // Collect labels to draw after all edges (so labels don't interfere with edge drawing)
         let mut labels_to_draw: Vec<(Vec<(usize, usize)>, String)> = Vec::new();
@@ -1608,9 +1759,13 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
             // Compute edge exit/entry points based on direction
             let (from_center, to_center) = if let (Some(from), Some(to)) = (from_node, to_node) {
                 let fc = match database.direction() {
-                    crate::core::Direction::TopDown => (from.x + from.width / 2, from.y + from.height),
+                    crate::core::Direction::TopDown => {
+                        (from.x + from.width / 2, from.y + from.height)
+                    }
                     crate::core::Direction::BottomUp => (from.x + from.width / 2, from.y),
-                    crate::core::Direction::LeftRight => (from.x + from.width, from.y + from.height / 2),
+                    crate::core::Direction::LeftRight => {
+                        (from.x + from.width, from.y + from.height / 2)
+                    }
                     crate::core::Direction::RightLeft => (from.x, from.y + from.height / 2),
                 };
                 let tc = match database.direction() {
@@ -1628,7 +1783,12 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
             if let Some(junction) = edge.junction {
                 // Draw junction if not already drawn
                 if !drawn_split_junctions.contains(&junction) {
-                    self.draw_junction(&mut canvas, junction, database.direction(), edge.group_size.unwrap_or(1));
+                    self.draw_junction(
+                        &mut canvas,
+                        junction,
+                        database.direction(),
+                        edge.group_size.unwrap_or(1),
+                    );
                     drawn_split_junctions.insert(junction);
                 }
 
@@ -1638,9 +1798,23 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
                     if let Some(merge_junction) = edge.merge_junction {
                         // Split edge goes: source -> split junction -> ... -> merge junction
                         // We'll handle the merge part separately
-                        self.draw_split_edge(&mut canvas, fc, junction, merge_junction, edge_type, database.direction());
+                        self.draw_split_edge(
+                            &mut canvas,
+                            fc,
+                            junction,
+                            merge_junction,
+                            edge_type,
+                            database.direction(),
+                        );
                     } else {
-                        self.draw_split_edge(&mut canvas, fc, junction, tc, edge_type, database.direction());
+                        self.draw_split_edge(
+                            &mut canvas,
+                            fc,
+                            junction,
+                            tc,
+                            edge_type,
+                            database.direction(),
+                        );
                     }
                 }
             }
@@ -1648,12 +1822,25 @@ impl Renderer<FlowchartDatabase> for FlowchartRenderer {
             else if let Some(merge_junction) = edge.merge_junction {
                 if let (Some(fc), Some(tc)) = (from_center, to_center) {
                     // Draw edge from source to merge junction
-                    self.draw_merge_edge(&mut canvas, fc, merge_junction, tc, edge_type, database.direction());
+                    self.draw_merge_edge(
+                        &mut canvas,
+                        fc,
+                        merge_junction,
+                        tc,
+                        edge_type,
+                        database.direction(),
+                    );
 
                     // Draw merge junction and final segment only once
                     if !drawn_merge_junctions.contains(&merge_junction) {
                         self.draw_merge_junction(&mut canvas, merge_junction, database.direction());
-                        self.draw_merge_to_target(&mut canvas, merge_junction, tc, edge_type, database.direction());
+                        self.draw_merge_to_target(
+                            &mut canvas,
+                            merge_junction,
+                            tc,
+                            edge_type,
+                            database.direction(),
+                        );
                         drawn_merge_junctions.insert(merge_junction);
                     }
                 }
@@ -1765,7 +1952,8 @@ mod tests {
         // Diamond should have corner characters (◆ for Box style, < > for Tall)
         assert!(
             output.contains('◆') || output.contains('<') || output.contains('>'),
-            "Expected diamond corner chars in: {}", output
+            "Expected diamond corner chars in: {}",
+            output
         );
     }
 
@@ -1819,7 +2007,11 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         // Should have split junction character ┤
-        assert!(output.contains('┤'), "Expected split junction ┤ in output:\n{}", output);
+        assert!(
+            output.contains('┤'),
+            "Expected split junction ┤ in output:\n{}",
+            output
+        );
     }
 
     #[test]
@@ -1836,7 +2028,11 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         // Should have merge junction character ├
-        assert!(output.contains('├'), "Expected merge junction ├ in output:\n{}", output);
+        assert!(
+            output.contains('├'),
+            "Expected merge junction ├ in output:\n{}",
+            output
+        );
     }
 
     #[test]
@@ -1856,8 +2052,16 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         // Should have both split junction ┤ (from A) and merge junction ├ (into D)
-        assert!(output.contains('┤'), "Expected split junction ┤ in output:\n{}", output);
-        assert!(output.contains('├'), "Expected merge junction ├ in output:\n{}", output);
+        assert!(
+            output.contains('┤'),
+            "Expected split junction ┤ in output:\n{}",
+            output
+        );
+        assert!(
+            output.contains('├'),
+            "Expected merge junction ├ in output:\n{}",
+            output
+        );
     }
 
     #[test]
@@ -1874,7 +2078,11 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         // Should have merge junction character ┬ (for TD)
-        assert!(output.contains('┬'), "Expected merge junction ┬ in output:\n{}", output);
+        assert!(
+            output.contains('┬'),
+            "Expected merge junction ┬ in output:\n{}",
+            output
+        );
     }
 
     #[test]
@@ -1893,7 +2101,11 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         // Should have merge junction character ├
-        assert!(output.contains('├'), "Expected merge junction ├ in output:\n{}", output);
+        assert!(
+            output.contains('├'),
+            "Expected merge junction ├ in output:\n{}",
+            output
+        );
         // All three sources should be present
         assert!(output.contains("B"));
         assert!(output.contains("C"));
@@ -1917,7 +2129,11 @@ mod tests {
         let output = renderer.render(&db).unwrap();
 
         // Should have split junction character ┤
-        assert!(output.contains('┤'), "Expected split junction ┤ in output:\n{}", output);
+        assert!(
+            output.contains('┤'),
+            "Expected split junction ┤ in output:\n{}",
+            output
+        );
         // All nodes should be present
         assert!(output.contains("A"));
         assert!(output.contains("B"));

@@ -206,7 +206,7 @@ mod integration_tests {
         let edges: Vec<_> = database.edges().collect();
         assert_eq!(edges[0].label, Some("Path 1".to_string()));
         assert_eq!(edges[1].label, Some("Path 2".to_string()));
-        
+
         assert_eq!(layout_result.edges.len(), 4);
         assert!(!output.is_empty());
         // Edge labels should appear in output
@@ -260,7 +260,12 @@ mod integration_tests {
             let parser = FlowchartParser::new();
             let mut database = FlowchartDatabase::new();
             parser.parse(&input, &mut database).unwrap();
-            assert_eq!(database.direction(), expected_dir, "Failed direction for {}", header);
+            assert_eq!(
+                database.direction(),
+                expected_dir,
+                "Failed direction for {}",
+                header
+            );
 
             let layout = FlowchartLayoutAlgorithm::new();
             let layout_result = layout.layout(&database).unwrap();

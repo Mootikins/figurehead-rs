@@ -89,7 +89,7 @@ fn test_detector_with_tracing() {
     // Test detector
     let detector = FlowchartDetector::new();
     let input = "graph TD; A-->B";
-    
+
     assert!(detector.detect(input));
     assert!(detector.confidence(input) > 0.0);
     assert_eq!(detector.diagram_type(), "flowchart");
@@ -100,14 +100,11 @@ fn test_orchestrator_with_tracing() {
     // Initialize logging
     let _ = init_logging(Some("debug"), Some("compact"));
 
-    use figurehead::plugins::Orchestrator;
     use figurehead::plugins::flowchart::FlowchartDetector;
+    use figurehead::plugins::Orchestrator;
 
     let mut orchestrator = Orchestrator::with_flowchart_plugins();
-    orchestrator.register_detector(
-        "flowchart".to_string(),
-        Box::new(FlowchartDetector::new()),
-    );
+    orchestrator.register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
 
     let input = "graph TD; A-->B-->C";
     let result = orchestrator.process(input);

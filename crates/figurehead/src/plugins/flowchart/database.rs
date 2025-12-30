@@ -125,7 +125,11 @@ impl FlowchartDatabase {
     /// Topological sort using Kahn's algorithm
     /// Returns nodes in topological order, or all nodes if graph has cycles
     pub fn topological_sort(&self) -> Vec<&str> {
-        trace!(node_count = self.node_count(), edge_count = self.edge_count(), "Starting topological sort");
+        trace!(
+            node_count = self.node_count(),
+            edge_count = self.edge_count(),
+            "Starting topological sort"
+        );
         let mut in_degree: HashMap<&str, usize> = HashMap::new();
         let mut adjacency: HashMap<&str, Vec<&str>> = HashMap::new();
 
@@ -176,7 +180,11 @@ impl FlowchartDatabase {
         // If we didn't get all nodes, there's a cycle
         // Return what we have plus remaining nodes
         if result.len() < self.node_order.len() {
-            debug!(sorted_count = result.len(), total_nodes = self.node_order.len(), "Cycle detected in graph");
+            debug!(
+                sorted_count = result.len(),
+                total_nodes = self.node_order.len(),
+                "Cycle detected in graph"
+            );
             for id in &self.node_order {
                 if !result.contains(&id.as_str()) {
                     result.push(id.as_str());
@@ -230,11 +238,8 @@ impl FlowchartDatabase {
             "Adding subgraph to database"
         );
 
-        self.subgraphs.push(Subgraph::new(
-            id.clone(),
-            title,
-            filtered_members,
-        ));
+        self.subgraphs
+            .push(Subgraph::new(id.clone(), title, filtered_members));
 
         debug!(subgraph_count = self.subgraphs.len(), "Subgraph added");
         id
@@ -509,7 +514,10 @@ mod tests {
         db.add_simple_node("A", "Node A").unwrap();
         db.add_simple_node("B", "Node B").unwrap();
 
-        let id = db.add_subgraph("Cluster".to_string(), vec!["A".to_string(), "B".to_string()]);
+        let id = db.add_subgraph(
+            "Cluster".to_string(),
+            vec!["A".to_string(), "B".to_string()],
+        );
 
         assert_eq!(id, "subgraph_0");
         assert_eq!(db.subgraph_count(), 1);
@@ -527,7 +535,10 @@ mod tests {
         db.add_simple_node("B", "Node B").unwrap();
         db.add_simple_node("C", "Node C").unwrap();
 
-        db.add_subgraph("Group 1".to_string(), vec!["A".to_string(), "B".to_string()]);
+        db.add_subgraph(
+            "Group 1".to_string(),
+            vec!["A".to_string(), "B".to_string()],
+        );
 
         assert!(db.node_subgraph("A").is_some());
         assert_eq!(db.node_subgraph("A").unwrap().title, "Group 1");

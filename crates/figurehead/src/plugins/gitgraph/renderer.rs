@@ -89,12 +89,7 @@ impl GitGraphRenderer {
         Self { style }
     }
 
-    fn draw_commit(
-        &self,
-        canvas: &mut GitGraphCanvas,
-        commit: &PositionedCommit,
-        label: &str,
-    ) {
+    fn draw_commit(&self, canvas: &mut GitGraphCanvas, commit: &PositionedCommit, label: &str) {
         let x = commit.x + commit.width / 2;
         let y = commit.y + commit.height / 2;
 
@@ -107,11 +102,7 @@ impl GitGraphRenderer {
         canvas.draw_text(label_x.max(0), commit.y + commit.height + 1, label);
     }
 
-    fn draw_edge(
-        &self,
-        canvas: &mut GitGraphCanvas,
-        waypoints: &[(usize, usize)],
-    ) {
+    fn draw_edge(&self, canvas: &mut GitGraphCanvas, waypoints: &[(usize, usize)]) {
         if waypoints.len() < 2 {
             return;
         }
@@ -179,8 +170,14 @@ impl GitGraphRenderer {
             }
 
             // Corner
-            let corner = if self.style.is_ascii() { '+' } else { 
-                if y1 < y2 { '└' } else { '┌' }
+            let corner = if self.style.is_ascii() {
+                '+'
+            } else {
+                if y1 < y2 {
+                    '└'
+                } else {
+                    '┌'
+                }
             };
             canvas.set_char(x2, mid_y, corner);
         }

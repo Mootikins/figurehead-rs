@@ -2,9 +2,11 @@
 //!
 //! Parses class diagram syntax into the database.
 
-use anyhow::Result;
+use super::database::{
+    Class, ClassDatabase, Classifier, Member, Relationship, RelationshipKind, Visibility,
+};
 use crate::core::Parser;
-use super::database::{Class, ClassDatabase, Classifier, Member, Relationship, RelationshipKind, Visibility};
+use anyhow::Result;
 
 /// Class diagram parser
 pub struct ClassParser;
@@ -15,7 +17,10 @@ impl ClassParser {
     }
 
     /// Parse a relationship line like "Animal <|-- Dog" or "A --> B : label"
-    fn parse_relationship(&self, line: &str) -> Option<(String, String, RelationshipKind, Option<String>)> {
+    fn parse_relationship(
+        &self,
+        line: &str,
+    ) -> Option<(String, String, RelationshipKind, Option<String>)> {
         // Relationship patterns (longest first to avoid partial matches)
         let patterns = [
             ("<|--", RelationshipKind::Inheritance),
@@ -75,7 +80,10 @@ impl ClassParser {
 
         // Check for classifier suffix (* or $)
         let (rest, classifier) = if rest.ends_with('*') {
-            (rest.trim_end_matches('*').trim(), Some(Classifier::Abstract))
+            (
+                rest.trim_end_matches('*').trim(),
+                Some(Classifier::Abstract),
+            )
         } else if rest.ends_with('$') {
             (rest.trim_end_matches('$').trim(), Some(Classifier::Static))
         } else {
@@ -242,7 +250,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    class Animal", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    class Animal", &mut db)
+            .unwrap();
 
         assert_eq!(db.class_count(), 1);
         assert_eq!(db.classes()[0].name, "Animal");
@@ -376,7 +386,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Animal <|-- Dog", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Animal <|-- Dog", &mut db)
+            .unwrap();
 
         assert_eq!(db.class_count(), 2);
         assert_eq!(db.relationship_count(), 1);
@@ -391,7 +403,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Person *-- Heart", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Person *-- Heart", &mut db)
+            .unwrap();
 
         assert_eq!(db.relationship_count(), 1);
         let rel = &db.relationships()[0];
@@ -403,7 +417,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Library o-- Book", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Library o-- Book", &mut db)
+            .unwrap();
 
         let rel = &db.relationships()[0];
         assert_eq!(rel.kind, RelationshipKind::Aggregation);
@@ -414,7 +430,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Student --> Course", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Student --> Course", &mut db)
+            .unwrap();
 
         let rel = &db.relationships()[0];
         assert_eq!(rel.kind, RelationshipKind::Association);
@@ -425,7 +443,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Client ..> Service", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Client ..> Service", &mut db)
+            .unwrap();
 
         let rel = &db.relationships()[0];
         assert_eq!(rel.kind, RelationshipKind::Dependency);
@@ -436,7 +456,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Shape ..|> Drawable", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Shape ..|> Drawable", &mut db)
+            .unwrap();
 
         let rel = &db.relationships()[0];
         assert_eq!(rel.kind, RelationshipKind::Realization);
@@ -447,7 +469,9 @@ mod tests {
         let parser = ClassParser::new();
         let mut db = ClassDatabase::new();
 
-        parser.parse("classDiagram\n    Customer --> Order : places", &mut db).unwrap();
+        parser
+            .parse("classDiagram\n    Customer --> Order : places", &mut db)
+            .unwrap();
 
         let rel = &db.relationships()[0];
         assert_eq!(rel.label, Some("places".to_string()));

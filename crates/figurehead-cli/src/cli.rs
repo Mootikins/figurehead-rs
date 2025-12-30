@@ -207,10 +207,7 @@ impl FigureheadApp {
             .or_else(|| Some(cli.log_format.as_str().to_string()));
 
         // Reinitialize logging with CLI/environment settings
-        if let Err(e) = init_logging(
-            log_level_str.as_deref(),
-            log_format_str.as_deref(),
-        ) {
+        if let Err(e) = init_logging(log_level_str.as_deref(), log_format_str.as_deref()) {
             eprintln!("Warning: Failed to initialize logging: {}", e);
         }
 
@@ -479,12 +476,7 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_diamond_option() {
-        let args = vec![
-            "figurehead",
-            "convert",
-            "--diamond",
-            "tall",
-        ];
+        let args = vec!["figurehead", "convert", "--diamond", "tall"];
         let cli = Cli::try_parse_from(args).unwrap();
 
         match cli.command {
@@ -576,10 +568,8 @@ mod tests {
     #[test]
     fn test_detect_command_with_flowchart() {
         let mut app = FigureheadApp::new();
-        app.orchestrator_mut().register_detector(
-            "flowchart".to_string(),
-            Box::new(FlowchartDetector::new()),
-        );
+        app.orchestrator_mut()
+            .register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
 
         let input = "graph TD; A-->B;";
         let result = app.orchestrator().detect_diagram_type(input);
@@ -611,10 +601,8 @@ mod tests {
     #[test]
     fn test_validate_command_valid_flowchart() {
         let mut app = FigureheadApp::new();
-        app.orchestrator_mut().register_detector(
-            "flowchart".to_string(),
-            Box::new(FlowchartDetector::new()),
-        );
+        app.orchestrator_mut()
+            .register_detector("flowchart".to_string(), Box::new(FlowchartDetector::new()));
 
         let input = "graph TD; A-->B;";
 
