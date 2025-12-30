@@ -68,15 +68,15 @@ impl StateParser {
             .collect::<String>();
 
         let label = just(':')
-            .padded_by(ws.clone())
+            .padded_by(ws)
             .ignore_then(any().filter(|c| *c != '\n').repeated().collect::<String>())
             .map(|s| s.trim().to_string())
             .or_not();
 
         Self::state_ref()
-            .padded_by(ws.clone())
+            .padded_by(ws)
             .then_ignore(just("-->"))
-            .padded_by(ws.clone())
+            .padded_by(ws)
             .then(Self::state_ref())
             .padded_by(ws)
             .then(label)
@@ -98,9 +98,9 @@ impl StateParser {
             .collect::<String>();
 
         just("state")
-            .ignore_then(ws.clone())
+            .ignore_then(ws)
             .ignore_then(Self::quoted_string())
-            .then_ignore(ws.clone())
+            .then_ignore(ws)
             .then_ignore(just("as"))
             .then_ignore(ws)
             .then(Self::identifier())

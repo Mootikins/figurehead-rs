@@ -440,7 +440,7 @@ impl StateRenderer {
         let mut drawn: std::collections::HashSet<(&str, &str)> = std::collections::HashSet::new();
 
         // Draw splits (one source to multiple targets)
-        for (_source_id, transitions) in &by_source {
+        for transitions in by_source.values() {
             if transitions.len() > 1 {
                 let first = transitions[0];
                 let targets: Vec<(usize, usize, Option<&str>)> = transitions

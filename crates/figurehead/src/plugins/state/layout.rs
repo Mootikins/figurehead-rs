@@ -7,6 +7,9 @@ use crate::core::{LayoutAlgorithm, NodeShape};
 use anyhow::Result;
 use std::collections::{HashMap, HashSet, VecDeque};
 
+/// Type alias for rank layout info: (state dimensions, max height, row width)
+type RankInfo = (Vec<(usize, usize)>, usize, usize);
+
 /// Positioned state for rendering
 #[derive(Debug, Clone)]
 pub struct PositionedState {
@@ -148,7 +151,7 @@ impl StateLayoutAlgorithm {
         let max_rank = *ranks.values().max().unwrap_or(&0);
 
         // First pass: calculate dimensions and find max row width
-        let mut rank_info: Vec<(Vec<(usize, usize)>, usize, usize)> = Vec::new(); // (dims, max_height, row_width)
+        let mut rank_info: Vec<RankInfo> = Vec::new();
         let mut max_row_width = 0;
 
         for rank in 0..=max_rank {
@@ -185,14 +188,12 @@ impl StateLayoutAlgorithm {
         let mut state_positions: HashMap<String, (usize, usize, usize, usize)> = HashMap::new();
         let mut current_y = 0;
 
-        for rank in 0..=max_rank {
+        for (rank, (ref state_dims, max_height, row_width)) in rank_info.iter().enumerate() {
             let states_in_rank = by_rank.get(&rank).map(|v| v.as_slice()).unwrap_or(&[]);
 
             if states_in_rank.is_empty() {
                 continue;
             }
-
-            let (ref state_dims, max_height, row_width) = rank_info[rank];
 
             // Center this row on center_x
             let row_start = center_x.saturating_sub(row_width / 2);

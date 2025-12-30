@@ -252,7 +252,7 @@ impl EdgeRouter {
                 } else {
                     ty
                 };
-                if junction_y + 1 <= end_y {
+                if junction_y < end_y {
                     self.draw_vertical(canvas, tx, junction_y + 1, end_y);
                 }
             } else {
@@ -352,7 +352,7 @@ impl EdgeRouter {
         } else {
             to_y
         };
-        if junction_y + 1 <= end_y {
+        if junction_y < end_y {
             self.draw_vertical(canvas, to_x, junction_y + 1, end_y);
         }
 
