@@ -38,12 +38,6 @@ impl Canvas {
         }
     }
 
-    fn draw_vertical(&mut self, x: usize, y: usize, len: usize, c: char) {
-        for i in 0..len {
-            self.set(x, y + i, c);
-        }
-    }
-
     fn draw_text(&mut self, x: usize, y: usize, text: &str) {
         for (i, c) in text.chars().enumerate() {
             self.set(x + i, y, c);
@@ -55,13 +49,17 @@ impl Canvas {
         let padding = (width.saturating_sub(text_width)) / 2;
         self.draw_text(x + padding, y, text);
     }
+}
 
-    fn to_string(&self) -> String {
-        self.cells
+impl std::fmt::Display for Canvas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = self
+            .cells
             .iter()
             .map(|row| row.iter().collect::<String>().trim_end().to_string())
             .collect::<Vec<_>>()
-            .join("\n")
+            .join("\n");
+        write!(f, "{}", output)
     }
 }
 

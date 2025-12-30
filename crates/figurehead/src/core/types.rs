@@ -273,18 +273,21 @@ pub enum Direction {
     BottomUp,
 }
 
-impl Direction {
-    /// Parse direction from mermaid syntax (TD, TB, LR, RL, BT)
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for Direction {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "TD" | "TB" => Some(Direction::TopDown),
-            "LR" => Some(Direction::LeftRight),
-            "RL" => Some(Direction::RightLeft),
-            "BT" => Some(Direction::BottomUp),
-            _ => None,
+            "TD" | "TB" => Ok(Direction::TopDown),
+            "LR" => Ok(Direction::LeftRight),
+            "RL" => Ok(Direction::RightLeft),
+            "BT" => Ok(Direction::BottomUp),
+            _ => Err(()),
         }
     }
+}
 
+impl Direction {
     /// Returns true if this is a vertical layout (TD or BT)
     pub fn is_vertical(&self) -> bool {
         matches!(self, Direction::TopDown | Direction::BottomUp)
@@ -399,12 +402,12 @@ mod tests {
 
     #[test]
     fn test_direction_parsing() {
-        assert_eq!(Direction::from_str("TD"), Some(Direction::TopDown));
-        assert_eq!(Direction::from_str("tb"), Some(Direction::TopDown));
-        assert_eq!(Direction::from_str("LR"), Some(Direction::LeftRight));
-        assert_eq!(Direction::from_str("RL"), Some(Direction::RightLeft));
-        assert_eq!(Direction::from_str("BT"), Some(Direction::BottomUp));
-        assert_eq!(Direction::from_str("invalid"), None);
+        assert_eq!("TD".parse(), Ok(Direction::TopDown));
+        assert_eq!("tb".parse(), Ok(Direction::TopDown));
+        assert_eq!("LR".parse(), Ok(Direction::LeftRight));
+        assert_eq!("RL".parse(), Ok(Direction::RightLeft));
+        assert_eq!("BT".parse(), Ok(Direction::BottomUp));
+        assert!("invalid".parse::<Direction>().is_err());
     }
 
     #[test]

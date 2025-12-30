@@ -174,7 +174,7 @@ impl SyntaxParser for GitGraphSyntaxParser {
 
                     let prev_commit = branches
                         .get(&current_branch)
-                        .and_then(|c| if c.len() > 0 { c.last() } else { None })
+                        .and_then(|c| if !c.is_empty() { c.last() } else { None })
                         .cloned();
 
                     (last_merged, prev_commit)

@@ -41,7 +41,7 @@ impl Parser<GitGraphDatabase> for GitGraphParser {
             if line_lower.starts_with("gitgraph") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
-                    if let Some(direction) = crate::core::Direction::from_str(parts[1]) {
+                    if let Ok(direction) = parts[1].parse::<crate::core::Direction>() {
                         database.set_direction(direction);
                         debug!(direction = ?direction, "Parsed git graph direction");
                     }

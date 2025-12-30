@@ -8,6 +8,12 @@ use tracing::{debug, info, trace};
 /// Git graph detector implementation
 pub struct GitGraphDetector;
 
+impl Default for GitGraphDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GitGraphDetector {
     pub fn new() -> Self {
         Self

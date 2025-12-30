@@ -13,6 +13,12 @@ const CONNECTORS: [&str; 9] = [
     "-.->", "==>", "===", "-->", "---", "-.-", "--o", "--x", "~~~",
 ];
 
+impl Default for FlowchartDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FlowchartDetector {
     pub fn new() -> Self {
         Self

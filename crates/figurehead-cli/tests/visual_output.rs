@@ -175,7 +175,7 @@ fn test_generate_runner_script() {
 fn test_generate_manifest() {
     let manifest_path = visual_output_dir().join("manifest.json");
 
-    let tests = vec![
+    let tests = [
         (
             "simple_chain_lr.png",
             "Horizontal chain A->B->C, boxes should align horizontally on same row",

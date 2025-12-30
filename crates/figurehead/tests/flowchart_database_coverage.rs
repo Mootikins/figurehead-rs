@@ -1,6 +1,6 @@
 //! Tests for flowchart database edge cases
 
-use figurehead::core::{Database, Direction, EdgeData, EdgeType, NodeData, NodeShape};
+use figurehead::core::{Database, Direction, EdgeData, NodeData};
 use figurehead::plugins::flowchart::FlowchartDatabase;
 
 #[test]

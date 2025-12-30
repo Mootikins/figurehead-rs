@@ -58,18 +58,18 @@ impl GitGraphCanvas {
     }
 }
 
-impl ToString for GitGraphCanvas {
-    fn to_string(&self) -> String {
-        self.grid
+impl std::fmt::Display for GitGraphCanvas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = self
+            .grid
             .iter()
             .map(|row| {
                 let s: String = row.iter().collect();
                 s.trim_end().to_string()
             })
             .collect::<Vec<_>>()
-            .join("\n")
-            .trim_end()
-            .to_string()
+            .join("\n");
+        write!(f, "{}", output.trim_end())
     }
 }
 
@@ -172,12 +172,10 @@ impl GitGraphRenderer {
             // Corner
             let corner = if self.style.is_ascii() {
                 '+'
+            } else if y1 < y2 {
+                '└'
             } else {
-                if y1 < y2 {
-                    '└'
-                } else {
-                    '┌'
-                }
+                '┌'
             };
             canvas.set_char(x2, mid_y, corner);
         }

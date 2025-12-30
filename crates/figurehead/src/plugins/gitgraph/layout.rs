@@ -111,7 +111,7 @@ impl LayoutAlgorithm<GitGraphDatabase> for GitGraphLayoutAlgorithm {
                 let commit_ids: Vec<&str> = if direction.is_reversed() {
                     sorted.iter().rev().copied().collect()
                 } else {
-                    sorted.iter().copied().collect()
+                    sorted.to_vec()
                 };
 
                 for commit_id in commit_ids {
@@ -141,7 +141,7 @@ impl LayoutAlgorithm<GitGraphDatabase> for GitGraphLayoutAlgorithm {
                 let commit_ids: Vec<&str> = if direction.is_reversed() {
                     sorted.iter().rev().copied().collect()
                 } else {
-                    sorted.iter().copied().collect()
+                    sorted.to_vec()
                 };
 
                 for commit_id in commit_ids {

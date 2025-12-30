@@ -6,7 +6,6 @@
 use figurehead::core::logging::init_logging;
 use figurehead::prelude::*;
 use figurehead::{parse, render};
-use tracing::{info, span, Level};
 use tracing_subscriber::util::SubscriberInitExt;
 
 #[test]

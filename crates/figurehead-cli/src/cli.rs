@@ -528,14 +528,14 @@ mod tests {
 
     #[test]
     fn test_figurehead_app_creation() {
+        // Verify the app can be created without panicking
         let _app = FigureheadApp::new();
-        assert!(true);
     }
 
     #[test]
     fn test_figurehead_app_default() {
+        // Verify the app can be created via Default without panicking
         let _app = FigureheadApp::default();
-        assert!(true);
     }
 
     #[test]

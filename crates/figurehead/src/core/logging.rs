@@ -132,11 +132,11 @@ impl LogFormat {
 /// # Arguments
 ///
 /// * `level` - Optional log level string (trace|debug|info|warn|error).
-///            If None, uses environment variable `FIGUREHEAD_LOG_LEVEL` or `RUST_LOG`,
-///            or defaults to `info`.
+///   If None, uses environment variable `FIGUREHEAD_LOG_LEVEL` or `RUST_LOG`,
+///   or defaults to `info`.
 /// * `format` - Optional log format (compact|pretty|json).
-///             If None, uses environment variable `FIGUREHEAD_LOG_FORMAT`,
-///             or defaults to `compact`.
+///   If None, uses environment variable `FIGUREHEAD_LOG_FORMAT`,
+///   or defaults to `compact`.
 ///
 /// # Returns
 ///

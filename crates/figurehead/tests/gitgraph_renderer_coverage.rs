@@ -1,6 +1,6 @@
 //! Tests for git graph renderer edge cases
 
-use figurehead::core::{CharacterSet, Database, Direction, LayoutAlgorithm, Parser, Renderer};
+use figurehead::core::{Direction, Renderer};
 use figurehead::plugins::gitgraph::*;
 
 #[test]

@@ -13,7 +13,7 @@ use tracing::{debug, error, info, span, trace, warn, Level};
 
 thread_local! {
     /// Thread-local storage for collecting parse warnings
-    static PARSE_WARNINGS: RefCell<Vec<String>> = RefCell::new(Vec::new());
+    static PARSE_WARNINGS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Clear any accumulated warnings
@@ -215,9 +215,9 @@ fn split_chained_edges(statement: &str) -> Vec<String> {
     }
 
     let mut edges = Vec::new();
-    for i in 0..connectors.len() {
+    for (i, connector) in connectors.iter().enumerate() {
         if let (Some(from), Some(to)) = (nodes.get(i), nodes.get(i + 1)) {
-            edges.push(format!("{}{}{}", from, connectors[i], to));
+            edges.push(format!("{}{}{}", from, connector, to));
         }
     }
 

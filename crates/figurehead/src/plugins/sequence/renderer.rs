@@ -4,8 +4,8 @@
 
 use anyhow::Result;
 
-use super::database::{ArrowHead, LineStyle, SequenceDatabase};
-use super::layout::{SequenceLayoutAlgorithm, SequenceLayoutResult};
+use super::database::{ArrowHead, ArrowType, LineStyle, SequenceDatabase};
+use super::layout::SequenceLayoutAlgorithm;
 use crate::core::CharacterSet;
 
 /// ASCII canvas for sequence diagram rendering
@@ -38,12 +38,6 @@ impl Canvas {
         }
     }
 
-    fn draw_text(&mut self, x: usize, y: usize, text: &str) {
-        for (i, c) in text.chars().enumerate() {
-            self.set_char(x + i, y, c);
-        }
-    }
-
     fn draw_horizontal_line(&mut self, x1: usize, x2: usize, y: usize, solid: bool, unicode: bool) {
         let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
         let line_char = if solid {
@@ -52,12 +46,10 @@ impl Canvas {
             } else {
                 '-'
             }
+        } else if unicode {
+            '╌'
         } else {
-            if unicode {
-                '╌'
-            } else {
-                '-'
-            }
+            '-'
         };
 
         for x in start..=end {
@@ -76,18 +68,20 @@ impl Canvas {
             }
         }
     }
+}
 
-    fn to_string(&self) -> String {
-        self.grid
+impl std::fmt::Display for Canvas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let output = self
+            .grid
             .iter()
             .map(|row| {
                 let s: String = row.iter().collect();
                 s.trim_end().to_string()
             })
             .collect::<Vec<_>>()
-            .join("\n")
-            .trim_end()
-            .to_string()
+            .join("\n");
+        write!(f, "{}", output.trim_end())
     }
 }
 
@@ -167,14 +161,14 @@ impl SequenceRenderer {
         to_x: usize,
         y: usize,
         label: &str,
-        solid: bool,
-        head: ArrowHead,
+        arrow: &ArrowType,
     ) {
         let unicode = self.is_unicode();
         let going_right = to_x > from_x;
+        let solid = arrow.line == LineStyle::Solid;
 
         // Determine arrow head characters
-        let (arrow_char, arrow_offset) = match head {
+        let (arrow_char, arrow_offset) = match arrow.head {
             ArrowHead::Arrow => {
                 if unicode {
                     if going_right {
@@ -182,12 +176,10 @@ impl SequenceRenderer {
                     } else {
                         ('◀', 0)
                     }
+                } else if going_right {
+                    ('>', 0)
                 } else {
-                    if going_right {
-                        ('>', 0)
-                    } else {
-                        ('<', 0)
-                    }
+                    ('<', 0)
                 }
             }
             ArrowHead::Open => {
@@ -214,7 +206,7 @@ impl SequenceRenderer {
         }
 
         // Draw arrow head
-        if head != ArrowHead::None {
+        if arrow.head != ArrowHead::None {
             canvas.set_char(to_x, y, arrow_char);
         }
 
@@ -260,15 +252,13 @@ impl SequenceRenderer {
 
         // Draw messages
         for msg in &layout.messages {
-            let solid = msg.arrow.line == LineStyle::Solid;
             self.draw_message(
                 &mut canvas,
                 msg.from_x,
                 msg.to_x,
                 msg.y,
                 &msg.label,
-                solid,
-                msg.arrow.head,
+                &msg.arrow,
             );
         }
 

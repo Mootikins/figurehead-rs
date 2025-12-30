@@ -390,9 +390,9 @@ impl LayoutAlgorithm<FlowchartDatabase> for FlowchartLayoutAlgorithm {
 
                 let layer_iter: Box<dyn Iterator<Item = (usize, &Vec<&str>)>> =
                     if direction.is_reversed() {
-                        Box::new(layer_nodes.iter().enumerate().rev().map(|(i, l)| (i, l)))
+                        Box::new(layer_nodes.iter().enumerate().rev())
                     } else {
-                        Box::new(layer_nodes.iter().enumerate().map(|(i, l)| (i, l)))
+                        Box::new(layer_nodes.iter().enumerate())
                     };
 
                 for (layer_idx, layer) in layer_iter {

@@ -5,7 +5,7 @@
 use anyhow::Result;
 use unicode_width::UnicodeWidthStr;
 
-use super::database::{Message, Participant, SequenceDatabase, SequenceItem};
+use super::database::{Participant, SequenceDatabase};
 
 /// Positioned participant for rendering
 #[derive(Debug, Clone)]
@@ -100,22 +100,17 @@ impl SequenceLayoutAlgorithm {
 
                 // Calculate current span
                 let mut current_span = widths[left_idx] / 2 + widths[right_idx] / 2;
-                for i in left_idx..right_idx {
-                    current_span += adjusted_spacing[i];
-                }
-                for i in (left_idx + 1)..right_idx {
-                    current_span += widths[i];
-                }
+                current_span += adjusted_spacing[left_idx..right_idx].iter().sum::<usize>();
+                current_span += widths[(left_idx + 1)..right_idx].iter().sum::<usize>();
 
                 // If label is wider, increase spacing
                 if label_width > current_span {
                     let extra = label_width - current_span;
                     // Distribute extra space
                     let slots = right_idx - left_idx;
-                    let per_slot = (extra + slots - 1) / slots;
-                    for i in left_idx..right_idx {
-                        adjusted_spacing[i] =
-                            adjusted_spacing[i].max(self.participant_spacing + per_slot);
+                    let per_slot = extra.div_ceil(slots);
+                    for spacing in &mut adjusted_spacing[left_idx..right_idx] {
+                        *spacing = (*spacing).max(self.participant_spacing + per_slot);
                     }
                 }
             }

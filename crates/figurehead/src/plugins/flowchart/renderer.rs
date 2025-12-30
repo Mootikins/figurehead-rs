@@ -67,8 +67,8 @@ impl AsciiCanvas {
     }
 }
 
-impl ToString for AsciiCanvas {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for AsciiCanvas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut rows: Vec<String> = self
             .grid
             .iter()
@@ -87,7 +87,7 @@ impl ToString for AsciiCanvas {
         }
 
         if rows.is_empty() {
-            return String::new();
+            return Ok(());
         }
 
         // Remove common leading whitespace
@@ -104,7 +104,7 @@ impl ToString for AsciiCanvas {
             }
         }
 
-        rows.join("\n")
+        write!(f, "{}", rows.join("\n"))
     }
 }
 
@@ -308,13 +308,9 @@ impl FlowchartRenderer {
 
             format!(
                 "{} {} {}",
-                std::iter::repeat(dash_char)
-                    .take(left_dashes)
-                    .collect::<String>(),
+                std::iter::repeat_n(dash_char, left_dashes).collect::<String>(),
                 title,
-                std::iter::repeat(dash_char)
-                    .take(right_dashes)
-                    .collect::<String>()
+                std::iter::repeat_n(dash_char, right_dashes).collect::<String>()
             )
         } else {
             // Title too long, truncate if needed
@@ -810,16 +806,12 @@ impl FlowchartRenderer {
         let w = node.width;
         let h = node.height;
 
-        // Top
-        let top_left = if self.style.is_ascii() { '(' } else { '(' };
-        let top_right = if self.style.is_ascii() { ')' } else { ')' };
+        // Top - use parentheses for both ASCII and Unicode
         for i in 0..w {
             let ch = if i == 0 {
-                top_left
+                '('
             } else if i == w - 1 {
-                top_right
-            } else if self.style.is_ascii() {
-                '-'
+                ')'
             } else {
                 '-'
             };
@@ -828,10 +820,8 @@ impl FlowchartRenderer {
 
         // Middle
         for row in 1..h - 1 {
-            let side_left = if self.style.is_ascii() { '(' } else { '(' };
-            let side_right = if self.style.is_ascii() { ')' } else { ')' };
-            canvas.set_char(x, y + row, side_left);
-            canvas.set_char(x + w - 1, y + row, side_right);
+            canvas.set_char(x, y + row, '(');
+            canvas.set_char(x + w - 1, y + row, ')');
         }
 
         // Label
@@ -845,8 +835,6 @@ impl FlowchartRenderer {
                 '('
             } else if i == w - 1 {
                 ')'
-            } else if self.style.is_ascii() {
-                '-'
             } else {
                 '-'
             };
@@ -939,12 +927,10 @@ impl FlowchartRenderer {
                 } else {
                     '┘'
                 }
+            } else if y2 > y1 {
+                '┌'
             } else {
-                if y2 > y1 {
-                    '┌'
-                } else {
-                    '└'
-                }
+                '└'
             };
             canvas.set_char(turn_x, mid_y, corner);
 
@@ -1475,12 +1461,10 @@ impl FlowchartRenderer {
         let going_right = x2 > x1;
         let junction_t = if self.style.is_ascii() {
             '+'
+        } else if going_right {
+            '├'
         } else {
-            if going_right {
-                '├'
-            } else {
-                '┤'
-            }
+            '┤'
         };
         let junction_cross = if self.style.is_ascii() { '+' } else { '┼' };
 
@@ -1520,12 +1504,10 @@ impl FlowchartRenderer {
         let going_down = y2 > y1;
         let junction_t = if self.style.is_ascii() {
             '+'
+        } else if going_down {
+            '┬'
         } else {
-            if going_down {
-                '┬'
-            } else {
-                '┴'
-            }
+            '┴'
         };
         let junction_cross = if self.style.is_ascii() { '+' } else { '┼' };
 

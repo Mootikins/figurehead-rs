@@ -100,18 +100,12 @@ impl ClassParser {
             let name = rest[..paren_pos].trim().to_string();
 
             // Check for return type after )
-            let member_type = if let Some(close_paren) = rest.find(')') {
+            let member_type = rest.find(')').and_then(|close_paren| {
                 let after = rest[close_paren + 1..].trim();
-                if let Some(colon_pos) = after.find(':') {
-                    Some(after[colon_pos + 1..].trim().to_string())
-                } else if after.starts_with(':') {
-                    Some(after[1..].trim().to_string())
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
+                after
+                    .find(':')
+                    .map(|pos| after[pos + 1..].trim().to_string())
+            });
 
             Some(Member {
                 visibility,

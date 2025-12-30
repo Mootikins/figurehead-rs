@@ -1,8 +1,6 @@
 //! Tests for flowchart renderer edge cases to improve coverage
 
-use figurehead::core::{
-    CharacterSet, Database, Direction, EdgeType, LayoutAlgorithm, NodeShape, Parser, Renderer,
-};
+use figurehead::core::{CharacterSet, Direction, EdgeType, NodeShape, Renderer};
 use figurehead::plugins::flowchart::*;
 
 #[test]

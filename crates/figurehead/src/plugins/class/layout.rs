@@ -80,12 +80,10 @@ impl ClassLayoutAlgorithm {
             } else {
                 format!("{}{}(){}", vis, name, suffix_str)
             }
+        } else if let Some(t) = member_type {
+            format!("{}{}: {}{}", vis, name, t, suffix_str)
         } else {
-            if let Some(t) = member_type {
-                format!("{}{}: {}{}", vis, name, t, suffix_str)
-            } else {
-                format!("{}{}{}", vis, name, suffix_str)
-            }
+            format!("{}{}{}", vis, name, suffix_str)
         }
     }
 
