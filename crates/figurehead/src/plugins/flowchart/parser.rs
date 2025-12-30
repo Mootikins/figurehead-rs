@@ -290,7 +290,11 @@ fn normalize_inline_labels(input: &str) -> String {
 fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> Result<()> {
     match statement {
         Statement::Node(node) => {
-            database.add_node(NodeData::with_shape(&node.id, &node.label, node.shape))?;
+            let mut node_data = NodeData::with_shape(&node.id, &node.label, node.shape);
+            if let Some(class) = &node.class {
+                node_data.add_class(class);
+            }
+            database.add_node(node_data)?;
         }
         Statement::Edge(edge) => {
             // Ensure both nodes exist with their shape info if available
@@ -316,6 +320,28 @@ fn apply_statement(statement: &Statement, database: &mut FlowchartDatabase) -> R
 
             // Register the subgraph with its members
             database.add_subgraph(title.clone(), member_ids);
+        }
+        Statement::ClassDef(name, style) => {
+            // Define a CSS class
+            database.define_class(name, style.clone());
+        }
+        Statement::Style(node_ids, style) => {
+            // Apply inline style to nodes
+            for node_id in node_ids {
+                database.apply_node_style(node_id, style.clone());
+            }
+        }
+        Statement::Class(node_ids, class_name) => {
+            // Apply a class to nodes
+            for node_id in node_ids {
+                database.apply_class(node_id, class_name);
+            }
+        }
+        Statement::LinkStyle(indices, style) => {
+            // Apply style to edges by index
+            for &index in indices {
+                database.apply_edge_style(index, style.clone());
+            }
         }
     }
 
@@ -348,6 +374,11 @@ fn collect_node_ids(statements: &[Statement]) -> Vec<String> {
                     }
                 }
             }
+            // Style statements don't contribute node IDs
+            Statement::ClassDef(_, _)
+            | Statement::Style(_, _)
+            | Statement::Class(_, _)
+            | Statement::LinkStyle(_, _) => {}
         }
     }
     ids

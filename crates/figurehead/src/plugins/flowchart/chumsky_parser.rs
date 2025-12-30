@@ -3,7 +3,7 @@
 //! Parses individual Mermaid.js flowchart statements into AST structures.
 
 use super::whitespace::optional_whitespace;
-use crate::core::{Direction, EdgeType, NodeShape};
+use crate::core::{Direction, EdgeType, NodeShape, StyleDefinition};
 use anyhow::Result;
 use chumsky::prelude::*;
 use chumsky::text::ident;
@@ -54,10 +54,93 @@ impl ChumskyFlowchartParser {
 
     fn statement_parser<'src>() -> impl Parser<'src, &'src str, Statement> + Clone {
         recursive(|statements| {
-            Self::subgraph_parser(statements.clone())
+            // Style directives should be tried first (they have distinctive keywords)
+            Self::classdef_parser()
+                .or(Self::style_parser())
+                .or(Self::class_parser())
+                .or(Self::linkstyle_parser())
+                .or(Self::subgraph_parser(statements.clone()))
                 .or(Self::edge_parser().map(Statement::Edge))
                 .or(Self::node_parser().map(Statement::Node))
         })
+    }
+
+    /// Parse `classDef className fill:#f9f,stroke:#333`
+    fn classdef_parser<'src>() -> impl Parser<'src, &'src str, Statement> + Clone {
+        just("classDef")
+            .then(optional_whitespace())
+            .ignore_then(ident().map(|s: &str| s.to_string()))
+            .then_ignore(optional_whitespace())
+            .then(Self::style_string_parser())
+            .map(|(name, style_str)| {
+                Statement::ClassDef(name, StyleDefinition::parse(&style_str))
+            })
+    }
+
+    /// Parse `style nodeId1,nodeId2 fill:#f9f,stroke:#333`
+    fn style_parser<'src>() -> impl Parser<'src, &'src str, Statement> + Clone {
+        just("style")
+            .then(optional_whitespace())
+            .ignore_then(Self::id_list_parser())
+            .then_ignore(optional_whitespace())
+            .then(Self::style_string_parser())
+            .map(|(node_ids, style_str)| {
+                Statement::Style(node_ids, StyleDefinition::parse(&style_str))
+            })
+    }
+
+    /// Parse `class nodeId1,nodeId2 className`
+    fn class_parser<'src>() -> impl Parser<'src, &'src str, Statement> + Clone {
+        just("class")
+            .then(optional_whitespace())
+            .ignore_then(Self::id_list_parser())
+            .then_ignore(optional_whitespace())
+            .then(ident().map(|s: &str| s.to_string()))
+            .map(|(node_ids, class_name)| Statement::Class(node_ids, class_name))
+    }
+
+    /// Parse `linkStyle 0,1,2 stroke:#ff3`
+    fn linkstyle_parser<'src>() -> impl Parser<'src, &'src str, Statement> + Clone {
+        just("linkStyle")
+            .then(optional_whitespace())
+            .ignore_then(Self::index_list_parser())
+            .then_ignore(optional_whitespace())
+            .then(Self::style_string_parser())
+            .map(|(indices, style_str)| {
+                Statement::LinkStyle(indices, StyleDefinition::parse(&style_str))
+            })
+    }
+
+    /// Parse a comma-separated list of identifiers: `A,B,C`
+    fn id_list_parser<'src>() -> impl Parser<'src, &'src str, Vec<String>> + Clone {
+        ident()
+            .map(|s: &str| s.to_string())
+            .separated_by(just(',').padded_by(optional_whitespace()))
+            .at_least(1)
+            .collect()
+    }
+
+    /// Parse a comma-separated list of indices: `0,1,2`
+    fn index_list_parser<'src>() -> impl Parser<'src, &'src str, Vec<usize>> + Clone {
+        // Parse digits as string then convert
+        one_of('0'..='9')
+            .repeated()
+            .at_least(1)
+            .collect::<String>()
+            .map(|s| s.parse::<usize>().unwrap_or(0))
+            .separated_by(just(',').padded_by(optional_whitespace()))
+            .at_least(1)
+            .collect()
+    }
+
+    /// Parse a style string: `fill:#f9f,stroke:#333,stroke-width:4px`
+    fn style_string_parser<'src>() -> impl Parser<'src, &'src str, String> + Clone {
+        // Match everything except newlines and semicolons (statement separators)
+        none_of("\n\r;")
+            .repeated()
+            .at_least(1)
+            .collect::<String>()
+            .map(|s| s.trim().to_string())
     }
 
     fn node_parser<'src>() -> impl Parser<'src, &'src str, Node> + Clone {
@@ -74,6 +157,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Rectangle,
+                class: None,
             });
 
         // A(label) - Rounded rectangle / stadium
@@ -85,6 +169,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::RoundedRect,
+                class: None,
             });
 
         // A{label} - Diamond
@@ -96,6 +181,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Diamond,
+                class: None,
             });
 
         // A((label)) - Circle
@@ -107,6 +193,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Circle,
+                class: None,
             });
 
         // A[[label]] - Subroutine
@@ -118,6 +205,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Subroutine,
+                class: None,
             });
 
         // A{{label}} - Hexagon
@@ -129,6 +217,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Hexagon,
+                class: None,
             });
 
         // A[(label)] - Cylinder / database
@@ -140,6 +229,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Cylinder,
+                class: None,
             });
 
         // A[/label/] - Parallelogram (input/output)
@@ -151,6 +241,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Parallelogram,
+                class: None,
             });
 
         // A[/label\] - Trapezoid
@@ -162,6 +253,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Trapezoid,
+                class: None,
             });
 
         // A>label] - Asymmetric (flag)
@@ -173,6 +265,7 @@ impl ChumskyFlowchartParser {
                 id,
                 label,
                 shape: NodeShape::Asymmetric,
+                class: None,
             });
 
         // Order matters - try more specific patterns first
@@ -247,12 +340,14 @@ impl ChumskyFlowchartParser {
                         id,
                         label: Some(label),
                         shape: Some(shape),
+                        class: None,
                     }
                 } else {
                     NodeRef {
                         id,
                         label: None,
                         shape: None,
+                        class: None,
                     }
                 }
             })
@@ -384,6 +479,8 @@ pub struct Node {
     pub id: String,
     pub label: String,
     pub shape: NodeShape,
+    /// CSS class applied via `:::className` syntax
+    pub class: Option<String>,
 }
 
 /// Node reference in an edge (ID + optional shape/label)
@@ -392,6 +489,8 @@ pub struct NodeRef {
     pub id: String,
     pub label: Option<String>,
     pub shape: Option<NodeShape>,
+    /// CSS class applied via `:::className` syntax
+    pub class: Option<String>,
 }
 
 /// A parsed edge from the diagram
@@ -411,6 +510,14 @@ pub enum Statement {
     Node(Node),
     Edge(Edge),
     Subgraph(String, Vec<Statement>),
+    /// `classDef className fill:#f9f,stroke:#333`
+    ClassDef(String, StyleDefinition),
+    /// `style nodeId1,nodeId2 fill:#f9f,stroke:#333`
+    Style(Vec<String>, StyleDefinition),
+    /// `class nodeId1,nodeId2 className`
+    Class(Vec<String>, String),
+    /// `linkStyle 0,1,2 stroke:#ff3`
+    LinkStyle(Vec<usize>, StyleDefinition),
 }
 
 #[cfg(test)]
@@ -894,5 +1001,104 @@ mod tests {
         let mut db = super::super::database::FlowchartDatabase::new();
         assert!(full_parser.parse(input, &mut db).is_ok());
         assert_eq!(db.edge_count(), 3);
+    }
+
+    #[test]
+    fn test_parse_classdef() {
+        use crate::core::Color;
+
+        let parser = ChumskyFlowchartParser::new();
+        let stmt = parser.parse_statement("classDef highlight fill:#f9f,stroke:#333").unwrap();
+
+        if let Statement::ClassDef(name, style) = stmt {
+            assert_eq!(name, "highlight");
+            assert_eq!(style.fill, Some(Color::Hex("#f9f".to_string())));
+            assert_eq!(style.stroke, Some(Color::Hex("#333".to_string())));
+        } else {
+            panic!("Expected ClassDef statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_style() {
+        use crate::core::Color;
+
+        let parser = ChumskyFlowchartParser::new();
+        let stmt = parser.parse_statement("style A,B fill:#f00,color:#fff").unwrap();
+
+        if let Statement::Style(node_ids, style) = stmt {
+            assert_eq!(node_ids, vec!["A", "B"]);
+            assert_eq!(style.fill, Some(Color::Hex("#f00".to_string())));
+            assert_eq!(style.text_color, Some(Color::Hex("#fff".to_string())));
+        } else {
+            panic!("Expected Style statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_class() {
+        let parser = ChumskyFlowchartParser::new();
+        let stmt = parser.parse_statement("class A,B,C highlight").unwrap();
+
+        if let Statement::Class(node_ids, class_name) = stmt {
+            assert_eq!(node_ids, vec!["A", "B", "C"]);
+            assert_eq!(class_name, "highlight");
+        } else {
+            panic!("Expected Class statement");
+        }
+    }
+
+    #[test]
+    fn test_parse_linkstyle() {
+        use crate::core::Color;
+
+        let parser = ChumskyFlowchartParser::new();
+        let stmt = parser.parse_statement("linkStyle 0,1,2 stroke:#ff3,stroke-width:4px").unwrap();
+
+        if let Statement::LinkStyle(indices, style) = stmt {
+            assert_eq!(indices, vec![0, 1, 2]);
+            assert_eq!(style.stroke, Some(Color::Hex("#ff3".to_string())));
+            assert_eq!(style.stroke_width, Some(4));
+        } else {
+            panic!("Expected LinkStyle statement");
+        }
+    }
+
+    #[test]
+    fn test_style_integration() {
+        use crate::core::{Color, Database, Parser};
+
+        let input = r#"
+            graph TD
+            classDef red fill:#f00
+            A[Start] --> B[End]
+            class A red
+            style B fill:#0f0
+        "#;
+
+        let parser = super::super::parser::FlowchartParser::new();
+        let mut db = super::super::database::FlowchartDatabase::new();
+        parser.parse(input, &mut db).unwrap();
+
+        // Check class was defined
+        assert!(db.has_class("red"));
+        let red_class = db.get_class("red").unwrap();
+        assert_eq!(red_class.fill, Some(Color::Hex("#f00".to_string())));
+
+        // Check class was applied to node A
+        let node_a = db.get_node("A").unwrap();
+        assert!(node_a.classes.contains(&"red".to_string()));
+
+        // Check inline style was applied to node B
+        let node_b = db.get_node("B").unwrap();
+        assert!(node_b.inline_style.is_some());
+        assert_eq!(
+            node_b.inline_style.as_ref().unwrap().fill,
+            Some(Color::Hex("#0f0".to_string()))
+        );
+
+        // Check resolved style for A combines class definition
+        let resolved = db.resolve_node_style("A").unwrap();
+        assert_eq!(resolved.fill, Some(Color::Hex("#f00".to_string())));
     }
 }

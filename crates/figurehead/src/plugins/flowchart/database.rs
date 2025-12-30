@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use tracing::{debug, trace};
 
-use crate::core::{Database, Direction, EdgeData, EdgeType, NodeData, NodeShape};
+use crate::core::{Database, Direction, EdgeData, EdgeType, NodeData, NodeShape, StyleDefinition};
 
 /// A subgraph container grouping related nodes
 #[derive(Debug, Clone)]
@@ -45,6 +45,8 @@ pub struct FlowchartDatabase {
     subgraphs: Vec<Subgraph>,
     /// Counter for generating unique subgraph IDs
     subgraph_counter: usize,
+    /// Class definitions from `classDef` statements
+    class_defs: HashMap<String, StyleDefinition>,
 }
 
 impl FlowchartDatabase {
@@ -313,6 +315,7 @@ impl Database for FlowchartDatabase {
         self.node_order.clear();
         self.subgraphs.clear();
         self.subgraph_counter = 0;
+        self.class_defs.clear();
     }
 
     fn node_count(&self) -> usize {
@@ -363,6 +366,101 @@ impl FlowchartDatabase {
             self.add_simple_node(id, id)?;
         }
         Ok(())
+    }
+
+    /// Define a CSS class with a style definition
+    ///
+    /// Example: `classDef highlight fill:#f9f,stroke:#333`
+    pub fn define_class(&mut self, name: impl Into<String>, style: StyleDefinition) {
+        let name = name.into();
+        trace!(class_name = %name, "Defining class");
+        self.class_defs.insert(name, style);
+    }
+
+    /// Get a class definition by name
+    pub fn get_class(&self, name: &str) -> Option<&StyleDefinition> {
+        self.class_defs.get(name)
+    }
+
+    /// Check if a class is defined
+    pub fn has_class(&self, name: &str) -> bool {
+        self.class_defs.contains_key(name)
+    }
+
+    /// Apply a class to a node
+    ///
+    /// Returns true if the node exists and the class was applied.
+    pub fn apply_class(&mut self, node_id: &str, class_name: &str) -> bool {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            node.add_class(class_name);
+            trace!(node_id = %node_id, class_name = %class_name, "Applied class to node");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Apply inline style to a node
+    ///
+    /// Example: `style A fill:#f9f,stroke:#333`
+    pub fn apply_node_style(&mut self, node_id: &str, style: StyleDefinition) -> bool {
+        if let Some(node) = self.nodes.get_mut(node_id) {
+            node.set_style(style);
+            trace!(node_id = %node_id, "Applied inline style to node");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Apply style to an edge by index
+    ///
+    /// Example: `linkStyle 0 stroke:#ff3,stroke-width:4px`
+    pub fn apply_edge_style(&mut self, edge_index: usize, style: StyleDefinition) -> bool {
+        if let Some(edge) = self.edges.get_mut(edge_index) {
+            edge.set_style(style);
+            trace!(edge_index = %edge_index, "Applied style to edge");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Resolve the effective style for a node
+    ///
+    /// Combines class definitions and inline styles. Inline styles take precedence.
+    pub fn resolve_node_style(&self, node_id: &str) -> Option<StyleDefinition> {
+        let node = self.nodes.get(node_id)?;
+
+        let mut style = StyleDefinition::default();
+
+        // Apply class styles in order
+        for class_name in &node.classes {
+            if let Some(class_style) = self.class_defs.get(class_name) {
+                style.merge(class_style);
+            }
+        }
+
+        // Apply inline style last (takes precedence)
+        if let Some(inline) = &node.inline_style {
+            style.merge(inline);
+        }
+
+        if style.is_empty() {
+            None
+        } else {
+            Some(style)
+        }
+    }
+
+    /// Iterate over all class definitions
+    pub fn class_definitions(&self) -> impl Iterator<Item = (&str, &StyleDefinition)> {
+        self.class_defs.iter().map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Get the number of defined classes
+    pub fn class_count(&self) -> usize {
+        self.class_defs.len()
     }
 }
 
@@ -591,5 +689,118 @@ mod tests {
         // Counter should reset, so next subgraph gets id 0 again
         let id = db.add_subgraph("New".to_string(), vec![]);
         assert_eq!(id, "subgraph_0");
+    }
+
+    #[test]
+    fn test_class_definition() {
+        let mut db = FlowchartDatabase::new();
+
+        let style = StyleDefinition::parse("fill:#f9f,stroke:#333");
+        db.define_class("highlight", style);
+
+        assert!(db.has_class("highlight"));
+        assert!(!db.has_class("unknown"));
+        assert_eq!(db.class_count(), 1);
+
+        let retrieved = db.get_class("highlight").unwrap();
+        assert!(retrieved.fill.is_some());
+    }
+
+    #[test]
+    fn test_apply_class_to_node() {
+        let mut db = FlowchartDatabase::new();
+        db.add_simple_node("A", "Node A").unwrap();
+
+        // Define and apply class
+        db.define_class("red", StyleDefinition::parse("fill:#f00"));
+        assert!(db.apply_class("A", "red"));
+
+        // Check node has the class
+        let node = db.get_node("A").unwrap();
+        assert!(node.classes.contains(&"red".to_string()));
+
+        // Applying to non-existent node returns false
+        assert!(!db.apply_class("Z", "red"));
+    }
+
+    #[test]
+    fn test_apply_node_style() {
+        let mut db = FlowchartDatabase::new();
+        db.add_simple_node("A", "Node A").unwrap();
+
+        let style = StyleDefinition::parse("fill:#0f0,stroke:#333");
+        assert!(db.apply_node_style("A", style));
+
+        let node = db.get_node("A").unwrap();
+        assert!(node.inline_style.is_some());
+
+        // Non-existent node
+        assert!(!db.apply_node_style("Z", StyleDefinition::default()));
+    }
+
+    #[test]
+    fn test_apply_edge_style() {
+        let mut db = FlowchartDatabase::new();
+        db.add_simple_node("A", "A").unwrap();
+        db.add_simple_node("B", "B").unwrap();
+        db.add_simple_edge("A", "B").unwrap();
+
+        let style = StyleDefinition::parse("stroke:#ff0");
+        assert!(db.apply_edge_style(0, style));
+
+        let edges: Vec<_> = db.edges().collect();
+        assert!(edges[0].style.is_some());
+
+        // Invalid index
+        assert!(!db.apply_edge_style(99, StyleDefinition::default()));
+    }
+
+    #[test]
+    fn test_resolve_node_style() {
+        use crate::core::Color;
+
+        let mut db = FlowchartDatabase::new();
+        db.add_simple_node("A", "Node A").unwrap();
+
+        // Define two classes
+        db.define_class("base", StyleDefinition::parse("fill:#f00,stroke:#000"));
+        db.define_class("highlight", StyleDefinition::parse("stroke:#ff0"));
+
+        // Apply both classes
+        db.apply_class("A", "base");
+        db.apply_class("A", "highlight");
+
+        // Resolve style - highlight should override base's stroke
+        let resolved = db.resolve_node_style("A").unwrap();
+        assert_eq!(resolved.fill, Some(Color::Hex("#f00".to_string())));
+        assert_eq!(resolved.stroke, Some(Color::Hex("#ff0".to_string())));
+    }
+
+    #[test]
+    fn test_resolve_style_inline_precedence() {
+        use crate::core::Color;
+
+        let mut db = FlowchartDatabase::new();
+        db.add_simple_node("A", "Node A").unwrap();
+
+        // Class style
+        db.define_class("base", StyleDefinition::parse("fill:#f00"));
+        db.apply_class("A", "base");
+
+        // Inline style should override class
+        db.apply_node_style("A", StyleDefinition::parse("fill:#00f"));
+
+        let resolved = db.resolve_node_style("A").unwrap();
+        assert_eq!(resolved.fill, Some(Color::Hex("#00f".to_string())));
+    }
+
+    #[test]
+    fn test_class_clear() {
+        let mut db = FlowchartDatabase::new();
+        db.define_class("test", StyleDefinition::parse("fill:#f00"));
+        assert_eq!(db.class_count(), 1);
+
+        db.clear();
+        assert_eq!(db.class_count(), 0);
     }
 }

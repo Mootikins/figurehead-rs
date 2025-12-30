@@ -3,327 +3,851 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Figurehead - Mermaid to ASCII Converter</title>
+    <meta name="description" content="Convert Mermaid.js diagrams to ASCII art">
+    <meta name="theme-color" content="#667eea">
+    <title>Figurehead - Mermaid to ASCII</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/icon-192.png">
+    <link rel="apple-touch-icon" href="/icon-192.png">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Theme variables */
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --text-primary: #d4d4d4;
+            --text-secondary: #858585;
+            --accent: #667eea;
+            --accent-hover: #764ba2;
+            --warning-bg: #3d3520;
+            --warning-text: #cca700;
+            --warning-border: #4a4020;
+            --error-bg: #3a1d1d;
+            --error-text: #f48771;
+            --border: #333;
         }
+
+        @media (prefers-color-scheme: light) {
+            :root:not([data-theme="dark"]) {
+                --bg-primary: #ffffff;
+                --bg-secondary: #f5f5f5;
+                --bg-tertiary: #e8e8e8;
+                --text-primary: #333333;
+                --text-secondary: #666666;
+                --warning-bg: #fff8e6;
+                --warning-text: #856404;
+                --warning-border: #ffeeba;
+                --error-bg: #fee;
+                --error-text: #c33;
+                --border: #ddd;
+            }
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e8e8e8;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --warning-bg: #fff8e6;
+            --warning-text: #856404;
+            --warning-border: #ffeeba;
+            --error-bg: #fee;
+            --error-text: #c33;
+            --border: #ddd;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-tertiary: #2d2d30;
+            --text-primary: #d4d4d4;
+            --text-secondary: #858585;
+            --warning-bg: #3d3520;
+            --warning-text: #cca700;
+            --warning-border: #4a4020;
+            --error-bg: #3a1d1d;
+            --error-text: #f48771;
+            --border: #333;
+        }
+
+        /* Reset & base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
             overflow: hidden;
         }
 
+        /* Header */
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }
 
-        header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-
-        header p {
-            opacity: 0.9;
-            font-size: 1.1em;
-        }
-
-        .content {
-            padding: 30px;
-        }
-
-        .input-section {
-            margin-bottom: 30px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
+        .logo {
             font-weight: 600;
-            color: #333;
+            font-size: 1.1em;
+            color: var(--accent);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .icon-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: var(--bg-secondary);
+        }
+
+        /* Main editor area */
+        main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .pane-header {
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .input-pane {
+            border-right: 1px solid var(--border);
         }
 
         textarea {
-            width: 100%;
-            min-height: 150px;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            flex: 1;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: 12px;
             font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
             font-size: 14px;
-            resize: vertical;
-            transition: border-color 0.3s;
-        }
-
-        textarea:focus {
+            resize: none;
             outline: none;
-            border-color: #667eea;
-        }
-
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            line-height: 1.5;
         }
 
         select {
-            padding: 10px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            background: white;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
             cursor: pointer;
-            transition: border-color 0.3s;
         }
 
-        select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .render-btn {
+            display: none;
+            background: var(--accent);
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        .render-btn:hover {
+            background: var(--accent-hover);
         }
 
-        button:active {
+        /* Show render button on mobile */
+        .mobile-mode .render-btn {
+            display: inline-block;
+        }
+
+        /* Warnings panel */
+        .warnings {
+            background: var(--warning-bg);
+            border-bottom: 1px solid var(--warning-border);
+            max-height: 100px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .warnings:empty {
+            display: none;
+        }
+
+        .warning-item {
+            padding: 6px 12px;
+            color: var(--warning-text);
+            font-size: 12px;
+            border-bottom: 1px solid var(--warning-border);
+        }
+
+        .warning-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Output */
+        .output {
+            flex: 1;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre;
+            overflow: auto;
+            line-height: 1.4;
+        }
+
+        .output.error {
+            color: var(--error-text);
+            background: var(--error-bg);
+        }
+
+        /* Examples panel */
+        .examples-panel {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .examples-panel.collapsed {
+            max-height: 40px;
+        }
+
+        .examples-panel:not(.collapsed) {
+            max-height: 200px;
+        }
+
+        .examples-header {
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .examples-header h3 {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .examples-content {
+            padding: 0 16px 12px;
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+        }
+
+        .example-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px;
+            min-width: 200px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .example-card:hover {
+            border-color: var(--accent);
+        }
+
+        .example-card pre {
+            font-size: 11px;
+            white-space: pre-wrap;
+            color: var(--text-secondary);
+        }
+
+        /* Mobile drawer for examples */
+        .drawer-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+        }
+
+        .drawer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            max-height: 60vh;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 101;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .drawer.open {
             transform: translateY(0);
         }
 
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+        .drawer-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            margin: 10px auto;
         }
 
-        .output-section {
-            margin-top: 30px;
+        .drawer-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 16px 16px;
         }
 
-        .output {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            overflow-x: auto;
-            min-height: 100px;
-            border: 2px solid #333;
-        }
-
-        .error {
-            background: #fee;
-            color: #c33;
-            padding: 15px;
-            border-radius: 8px;
-            border: 2px solid #fcc;
-            margin-top: 15px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-        }
-
-        .example {
-            margin-top: 20px;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-
-        .example h3 {
+        .drawer-content .example-card {
+            width: 100%;
             margin-bottom: 10px;
-            color: #333;
         }
 
-        .example-code {
-            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-            font-size: 13px;
-            background: white;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 10px;
-            overflow-x: auto;
+        /* Mobile layout */
+        @media (max-width: 768px) {
+            main {
+                flex-direction: column;
+            }
+
+            .input-pane {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                max-height: 40vh;
+            }
+
+            .examples-panel {
+                display: none;
+            }
+
+            .drawer-overlay.open {
+                display: block;
+            }
         }
 
-        .example-button {
-            margin-top: 10px;
-            padding: 8px 16px;
-            font-size: 14px;
-            background: #667eea;
+        /* Keyboard shortcut hints */
+        kbd {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 11px;
+            font-family: inherit;
+        }
+
+        /* Hidden file input */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Status indicator */
+        .status {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-left: auto;
+        }
+
+        .status.offline {
+            color: var(--warning-text);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎨 Figurehead</h1>
-            <p>Convert Mermaid.js diagrams to ASCII art</p>
-        </header>
+    <header>
+        <span class="logo">Figurehead</span>
+        <div class="header-controls">
+            <button class="icon-btn" id="open-btn" title="Open file (Ctrl+O)">Open</button>
+            <button class="icon-btn" id="save-btn" title="Save file (Ctrl+S)">Save</button>
+            <button class="icon-btn" id="copy-btn" title="Copy output">Copy</button>
+            <button class="icon-btn" id="theme-btn" title="Toggle theme">Theme</button>
+            <button class="icon-btn" id="help-btn" title="Examples (?)">?</button>
+            <span class="status" id="status"></span>
+        </div>
+    </header>
 
-        <div class="content">
-            <div class="input-section">
-                <label for="diagram-input">Mermaid Diagram Syntax:</label>
-                <textarea id="diagram-input" placeholder="graph TD&#10;    A[Start] --> B{Decision}&#10;    B -->|Yes| C[Success]&#10;    B -->|No| D[Try Again]">graph TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Success]
-    B -->|No| D[Try Again]</textarea>
-            </div>
-
-            <div class="controls">
+    <main>
+        <div class="pane input-pane">
+            <div class="pane-header">
+                <span>Input</span>
                 <select id="style-select">
-                    <option value="unicode">Unicode (Default)</option>
+                    <option value="unicode">Unicode</option>
                     <option value="ascii">ASCII</option>
                     <option value="unicode-math">Unicode Math</option>
                     <option value="compact">Compact</option>
                 </select>
-                <button id="render-button" onclick="renderDiagram()">Render Diagram</button>
-                <button id="parse-button" onclick="parseDiagram()">Parse Only</button>
+                <button class="render-btn" id="render-btn">Render</button>
             </div>
-
-            <div class="output-section">
-                <label>Output:</label>
-                <div id="output" class="output">Click "Render Diagram" to see the ASCII art output...</div>
-            </div>
-
-            <div class="example">
-                <h3>Example Diagrams</h3>
-                <div class="example-code">graph LR; A-->B-->C</div>
-                <button class="example-button" onclick="loadExample('graph LR; A-->B-->C')">Load Example</button>
-                
-                <div class="example-code" style="margin-top: 15px;">graph TD
+            <textarea id="input" placeholder="graph TD&#10;    A[Start] --> B{Decision}&#10;    B -->|Yes| C[End]">graph TD
     A[Start] --> B{Decision}
     B -->|Yes| C[Success]
-    B -->|No| D[Try Again]</div>
-                <button class="example-button" onclick="loadExample(`graph TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Success]
-    B -->|No| D[Try Again]`)">Load Example</button>
-            </div>
+    B -->|No| D[Try Again]</textarea>
         </div>
+        <div class="pane output-pane">
+            <div class="pane-header">
+                <span>Output</span>
+            </div>
+            <div id="warnings" class="warnings"></div>
+            <div id="output" class="output">Loading WASM...</div>
+        </div>
+    </main>
+
+    <!-- Desktop examples panel -->
+    <div class="examples-panel collapsed" id="examples-panel">
+        <div class="examples-header" id="examples-header">
+            <h3>Examples</h3>
+            <span id="examples-toggle">Show</span>
+        </div>
+        <div class="examples-content" id="examples-content"></div>
     </div>
 
+    <!-- Mobile drawer -->
+    <div class="drawer-overlay" id="drawer-overlay"></div>
+    <div class="drawer" id="drawer">
+        <div class="drawer-handle"></div>
+        <div class="drawer-content" id="drawer-content"></div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="file-input" class="hidden" accept=".mmd,.mermaid,.txt">
+
     <script type="module">
-        import init, { render_flowchart, render_flowchart_with_style, parse_flowchart } from './pkg/figurehead.js';
+        import init, { render_diagram_json } from './pkg/figurehead.js';
 
-        let wasmInitialized = false;
+        // Example diagrams
+        const EXAMPLES = [
+            { name: 'Simple Flow', code: 'graph LR; A-->B-->C' },
+            { name: 'Decision', code: `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Success]
+    B -->|No| D[Try Again]` },
+            { name: 'Subgraph', code: `graph TD
+    subgraph Backend
+        A[API] --> B[Database]
+    end
+    C[Client] --> A` },
+            { name: 'Shapes', code: `graph LR
+    A[Rectangle] --> B(Rounded)
+    B --> C{Diamond}
+    C --> D((Circle))
+    D --> E[[Subroutine]]` }
+        ];
 
-        async function initWasm() {
-            if (!wasmInitialized) {
-                await init();
-                wasmInitialized = true;
+        // State
+        let wasmReady = false;
+        let renderTimeout = null;
+        let fileHandle = null;
+        let isMobileMode = false;
+
+        // Elements
+        const inputEl = document.getElementById('input');
+        const outputEl = document.getElementById('output');
+        const warningsEl = document.getElementById('warnings');
+        const styleSelect = document.getElementById('style-select');
+        const renderBtn = document.getElementById('render-btn');
+        const openBtn = document.getElementById('open-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const themeBtn = document.getElementById('theme-btn');
+        const helpBtn = document.getElementById('help-btn');
+        const statusEl = document.getElementById('status');
+        const examplesPanel = document.getElementById('examples-panel');
+        const examplesHeader = document.getElementById('examples-header');
+        const examplesContent = document.getElementById('examples-content');
+        const examplesToggle = document.getElementById('examples-toggle');
+        const drawerOverlay = document.getElementById('drawer-overlay');
+        const drawer = document.getElementById('drawer');
+        const drawerContent = document.getElementById('drawer-content');
+        const fileInput = document.getElementById('file-input');
+
+        // Initialize
+        async function initialize() {
+            detectMode();
+            loadTheme();
+            setupExamples();
+            setupEventListeners();
+            handleShareTarget();
+            await initWasm();
+            registerServiceWorker();
+        }
+
+        // Detect mobile/touch mode
+        function detectMode() {
+            const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const isMobile = window.innerWidth <= 768;
+            isMobileMode = isTouch || isMobile;
+
+            if (isMobileMode) {
+                document.body.classList.add('mobile-mode');
             }
         }
 
-        window.renderDiagram = async function() {
-            await initWasm();
-            const input = document.getElementById('diagram-input').value;
-            const style = document.getElementById('style-select').value;
-            const output = document.getElementById('output');
-            const button = document.getElementById('render-button');
+        // Theme management
+        function loadTheme() {
+            const saved = localStorage.getItem('theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+            }
+        }
 
-            if (!input.trim()) {
-                output.textContent = 'Please enter a Mermaid diagram syntax.';
-                output.className = 'output error';
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let next;
+            if (!current) {
+                // Currently using system, switch to opposite
+                next = systemDark ? 'light' : 'dark';
+            } else if (current === 'dark') {
+                next = 'light';
+            } else {
+                // Remove override, use system
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.removeItem('theme');
                 return;
             }
 
-            button.disabled = true;
-            output.className = 'output loading';
-            output.textContent = 'Rendering...';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        }
+
+        // Examples setup
+        function setupExamples() {
+            const createCard = (example) => {
+                const card = document.createElement('div');
+                card.className = 'example-card';
+                card.innerHTML = `<strong>${example.name}</strong><pre>${escapeHtml(example.code)}</pre>`;
+                card.onclick = () => loadExample(example.code);
+                return card;
+            };
+
+            EXAMPLES.forEach(ex => {
+                examplesContent.appendChild(createCard(ex));
+                drawerContent.appendChild(createCard(ex));
+            });
+        }
+
+        function loadExample(code) {
+            inputEl.value = code;
+            render();
+            closeDrawer();
+        }
+
+        // WASM initialization
+        async function initWasm() {
+            try {
+                await init();
+                wasmReady = true;
+                render();
+            } catch (err) {
+                outputEl.textContent = `Failed to load WASM: ${err.message}`;
+                outputEl.className = 'output error';
+            }
+        }
+
+        // Rendering
+        function render() {
+            if (!wasmReady) return;
+
+            const input = inputEl.value;
+            const style = styleSelect.value;
+
+            if (!input.trim()) {
+                outputEl.textContent = '';
+                outputEl.className = 'output';
+                warningsEl.innerHTML = '';
+                return;
+            }
 
             try {
-                let result;
-                if (style === 'unicode') {
-                    result = render_flowchart(input);
+                const resultJson = render_diagram_json(input, style);
+                const result = JSON.parse(resultJson);
+
+                // Warnings
+                if (result.warnings?.length > 0) {
+                    warningsEl.innerHTML = result.warnings
+                        .map(w => `<div class="warning-item">${escapeHtml(w)}</div>`)
+                        .join('');
                 } else {
-                    result = render_flowchart_with_style(input, style);
+                    warningsEl.innerHTML = '';
                 }
 
-                output.textContent = result;
-                output.className = 'output';
+                // Output
+                if (result.error) {
+                    outputEl.textContent = `Error: ${result.error}`;
+                    outputEl.className = 'output error';
+                } else {
+                    outputEl.textContent = result.output;
+                    outputEl.className = 'output';
+                }
             } catch (error) {
-                output.textContent = `Error: ${error.message}`;
-                output.className = 'output error';
-            } finally {
-                button.disabled = false;
+                outputEl.textContent = `Error: ${error}`;
+                outputEl.className = 'output error';
+                warningsEl.innerHTML = '';
             }
-        };
+        }
 
-        window.parseDiagram = async function() {
-            await initWasm();
-            const input = document.getElementById('diagram-input').value;
-            const output = document.getElementById('output');
-            const button = document.getElementById('parse-button');
+        function debouncedRender() {
+            if (renderTimeout) clearTimeout(renderTimeout);
+            renderTimeout = setTimeout(render, 100);
+        }
 
-            if (!input.trim()) {
-                output.textContent = 'Please enter a Mermaid diagram syntax.';
-                output.className = 'output error';
-                return;
+        // File operations
+        async function openFile() {
+            if ('showOpenFilePicker' in window) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{
+                            description: 'Mermaid files',
+                            accept: { 'text/plain': ['.mmd', '.mermaid', '.txt'] }
+                        }]
+                    });
+                    fileHandle = handle;
+                    const file = await handle.getFile();
+                    inputEl.value = await file.text();
+                    render();
+                    updateStatus(`Opened: ${handle.name}`);
+                } catch (err) {
+                    if (err.name !== 'AbortError') console.error(err);
+                }
+            } else {
+                fileInput.click();
             }
+        }
 
-            button.disabled = true;
-            output.className = 'output loading';
-            output.textContent = 'Parsing...';
+        async function saveFile() {
+            const content = inputEl.value;
+
+            if ('showSaveFilePicker' in window) {
+                try {
+                    if (!fileHandle) {
+                        fileHandle = await window.showSaveFilePicker({
+                            suggestedName: 'diagram.mmd',
+                            types: [{
+                                description: 'Mermaid files',
+                                accept: { 'text/plain': ['.mmd'] }
+                            }]
+                        });
+                    }
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(content);
+                    await writable.close();
+                    updateStatus(`Saved: ${fileHandle.name}`);
+                } catch (err) {
+                    if (err.name !== 'AbortError') console.error(err);
+                }
+            } else {
+                // Fallback: download
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'diagram.mmd';
+                a.click();
+                URL.revokeObjectURL(url);
+                updateStatus('Downloaded');
+            }
+        }
+
+        // Clipboard
+        async function copyOutput() {
+            const text = outputEl.textContent;
+            if (!text) return;
 
             try {
-                const result = parse_flowchart(input);
-                const data = JSON.parse(result);
-                output.textContent = `Parsed successfully!\n\nNodes: ${data.node_count}\nEdges: ${data.edge_count}\nDirection: ${data.direction}`;
-                output.className = 'output';
-            } catch (error) {
-                output.textContent = `Error: ${error.message}`;
-                output.className = 'output error';
-            } finally {
-                button.disabled = false;
+                await navigator.clipboard.writeText(text);
+                updateStatus('Copied!');
+            } catch (err) {
+                console.error('Copy failed:', err);
             }
-        };
+        }
 
-        window.loadExample = function(example) {
-            document.getElementById('diagram-input').value = example;
-        };
+        // Share target
+        function handleShareTarget() {
+            const params = new URLSearchParams(window.location.search);
+            const diagram = params.get('diagram') || params.get('text');
+            if (diagram) {
+                inputEl.value = diagram;
+                // Clean URL
+                window.history.replaceState({}, '', '/');
+            }
+        }
 
-        // Initialize WASM on page load
-        initWasm().catch(err => {
-            console.error('Failed to initialize WASM:', err);
-            document.getElementById('output').textContent = 'Failed to load WASM module. Make sure to build with wasm-pack.';
-            document.getElementById('output').className = 'output error';
-        });
+        // Service Worker
+        async function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                try {
+                    await navigator.serviceWorker.register('/sw.js');
+                } catch (err) {
+                    console.warn('SW registration failed:', err);
+                }
+            }
+
+            // Offline detection
+            window.addEventListener('online', () => {
+                statusEl.textContent = '';
+                statusEl.className = 'status';
+            });
+            window.addEventListener('offline', () => {
+                statusEl.textContent = 'Offline';
+                statusEl.className = 'status offline';
+            });
+            if (!navigator.onLine) {
+                statusEl.textContent = 'Offline';
+                statusEl.className = 'status offline';
+            }
+        }
+
+        // UI helpers
+        function updateStatus(msg) {
+            statusEl.textContent = msg;
+            statusEl.className = 'status';
+            setTimeout(() => {
+                if (statusEl.textContent === msg) {
+                    statusEl.textContent = navigator.onLine ? '' : 'Offline';
+                }
+            }, 2000);
+        }
+
+        function toggleExamples() {
+            examplesPanel.classList.toggle('collapsed');
+            examplesToggle.textContent = examplesPanel.classList.contains('collapsed') ? 'Show' : 'Hide';
+        }
+
+        function openDrawer() {
+            drawer.classList.add('open');
+            drawerOverlay.classList.add('open');
+        }
+
+        function closeDrawer() {
+            drawer.classList.remove('open');
+            drawerOverlay.classList.remove('open');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Input
+            if (isMobileMode) {
+                renderBtn.addEventListener('click', render);
+            } else {
+                inputEl.addEventListener('input', debouncedRender);
+            }
+            styleSelect.addEventListener('change', render);
+
+            // File operations
+            openBtn.addEventListener('click', openFile);
+            saveBtn.addEventListener('click', saveFile);
+            copyBtn.addEventListener('click', copyOutput);
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    inputEl.value = await file.text();
+                    render();
+                }
+            });
+
+            // Theme
+            themeBtn.addEventListener('click', toggleTheme);
+
+            // Examples
+            helpBtn.addEventListener('click', () => {
+                if (isMobileMode) {
+                    openDrawer();
+                } else {
+                    toggleExamples();
+                }
+            });
+            examplesHeader.addEventListener('click', toggleExamples);
+            drawerOverlay.addEventListener('click', closeDrawer);
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === '?' && !e.ctrlKey && !e.metaKey && document.activeElement !== inputEl) {
+                    e.preventDefault();
+                    if (isMobileMode) openDrawer();
+                    else toggleExamples();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveFile();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+                    e.preventDefault();
+                    openFile();
+                }
+                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+                    e.preventDefault();
+                    copyOutput();
+                }
+            });
+
+            // Resize detection
+            window.addEventListener('resize', () => {
+                const wasMobile = isMobileMode;
+                detectMode();
+                if (wasMobile !== isMobileMode) {
+                    document.body.classList.toggle('mobile-mode', isMobileMode);
+                }
+            });
+
+            // Persist input
+            inputEl.addEventListener('input', () => {
+                localStorage.setItem('lastDiagram', inputEl.value);
+            });
+
+            // Restore last input
+            const saved = localStorage.getItem('lastDiagram');
+            if (saved) {
+                inputEl.value = saved;
+            }
+        }
+
+        // Start
+        initialize();
     </script>
 </body>
 </html>

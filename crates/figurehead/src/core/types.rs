@@ -140,6 +140,188 @@ pub struct RenderConfig {
     pub style: CharacterSet,
     /// Style for diamond (decision) nodes
     pub diamond_style: DiamondStyle,
+    /// Enable color output (requires terminal support)
+    pub color: bool,
+}
+
+/// A color value parsed from Mermaid style syntax
+///
+/// Supports hex colors (#rgb, #rrggbb) which are the primary format in Mermaid.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Color {
+    /// Hex color: #rgb or #rrggbb
+    Hex(String),
+    /// Named color (red, blue, green, etc.)
+    Named(String),
+}
+
+impl Color {
+    /// Parse a color from Mermaid syntax
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        if s.starts_with('#') {
+            let hex = &s[1..];
+            // Validate hex: 3 or 6 hex digits
+            if (hex.len() == 3 || hex.len() == 6)
+                && hex.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                return Some(Color::Hex(s.to_string()));
+            }
+        } else if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Some(Color::Named(s.to_lowercase()));
+        }
+        None
+    }
+
+    /// Convert to RGB tuple (r, g, b) values 0-255
+    pub fn to_rgb(&self) -> Option<(u8, u8, u8)> {
+        match self {
+            Color::Hex(hex) => {
+                let hex = hex.trim_start_matches('#');
+                if hex.len() == 3 {
+                    // #rgb -> #rrggbb
+                    let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
+                    let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
+                    let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
+                    Some((r, g, b))
+                } else if hex.len() == 6 {
+                    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+                    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+                    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+                    Some((r, g, b))
+                } else {
+                    None
+                }
+            }
+            Color::Named(name) => {
+                // Common CSS color names
+                match name.as_str() {
+                    "black" => Some((0, 0, 0)),
+                    "white" => Some((255, 255, 255)),
+                    "red" => Some((255, 0, 0)),
+                    "green" => Some((0, 128, 0)),
+                    "blue" => Some((0, 0, 255)),
+                    "yellow" => Some((255, 255, 0)),
+                    "cyan" => Some((0, 255, 255)),
+                    "magenta" => Some((255, 0, 255)),
+                    "gray" | "grey" => Some((128, 128, 128)),
+                    "orange" => Some((255, 165, 0)),
+                    "purple" => Some((128, 0, 128)),
+                    "pink" => Some((255, 192, 203)),
+                    "brown" => Some((139, 69, 19)),
+                    "lime" => Some((0, 255, 0)),
+                    "navy" => Some((0, 0, 128)),
+                    "teal" => Some((0, 128, 128)),
+                    "olive" => Some((128, 128, 0)),
+                    "maroon" => Some((128, 0, 0)),
+                    "aqua" => Some((0, 255, 255)),
+                    "silver" => Some((192, 192, 192)),
+                    _ => None,
+                }
+            }
+        }
+    }
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Color::Hex(h) => write!(f, "{}", h),
+            Color::Named(n) => write!(f, "{}", n),
+        }
+    }
+}
+
+/// Style definition for Mermaid classDef/style directives
+///
+/// Maps Mermaid CSS-like properties to terminal-compatible styles.
+/// In terminal output:
+/// - `fill` becomes background color
+/// - `stroke` becomes border/line color
+/// - `color` becomes text color
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StyleDefinition {
+    /// Background color (from `fill`)
+    pub fill: Option<Color>,
+    /// Border/line color (from `stroke`)
+    pub stroke: Option<Color>,
+    /// Text color (from `color`)
+    pub text_color: Option<Color>,
+    /// Stroke width in pixels (terminal: ignored, kept for SVG)
+    pub stroke_width: Option<u8>,
+    /// Dashed stroke pattern (terminal: use dotted chars)
+    pub stroke_dasharray: bool,
+}
+
+impl StyleDefinition {
+    /// Parse a style string from Mermaid syntax
+    ///
+    /// Example: "fill:#f9f,stroke:#333,stroke-width:4px,color:#fff"
+    pub fn parse(s: &str) -> Self {
+        let mut style = StyleDefinition::default();
+
+        for part in s.split(',') {
+            let part = part.trim();
+            if let Some((key, value)) = part.split_once(':') {
+                let key = key.trim();
+                let value = value.trim();
+
+                match key {
+                    "fill" | "background" | "background-color" => {
+                        style.fill = Color::parse(value);
+                    }
+                    "stroke" | "border-color" => {
+                        style.stroke = Color::parse(value);
+                    }
+                    "color" => {
+                        style.text_color = Color::parse(value);
+                    }
+                    "stroke-width" => {
+                        // Parse "4px" or "4"
+                        let num_str = value.trim_end_matches("px");
+                        style.stroke_width = num_str.parse().ok();
+                    }
+                    "stroke-dasharray" => {
+                        // Any non-empty value means dashed
+                        style.stroke_dasharray = !value.is_empty() && value != "0";
+                    }
+                    _ => {
+                        // Ignore unknown properties
+                    }
+                }
+            }
+        }
+
+        style
+    }
+
+    /// Merge another style into this one (other takes precedence)
+    pub fn merge(&mut self, other: &StyleDefinition) {
+        if other.fill.is_some() {
+            self.fill = other.fill.clone();
+        }
+        if other.stroke.is_some() {
+            self.stroke = other.stroke.clone();
+        }
+        if other.text_color.is_some() {
+            self.text_color = other.text_color.clone();
+        }
+        if other.stroke_width.is_some() {
+            self.stroke_width = other.stroke_width;
+        }
+        if other.stroke_dasharray {
+            self.stroke_dasharray = true;
+        }
+    }
+
+    /// Returns true if this style has any visual properties set
+    pub fn is_empty(&self) -> bool {
+        self.fill.is_none()
+            && self.stroke.is_none()
+            && self.text_color.is_none()
+            && self.stroke_width.is_none()
+            && !self.stroke_dasharray
+    }
 }
 
 impl RenderConfig {
@@ -148,7 +330,14 @@ impl RenderConfig {
         Self {
             style,
             diamond_style,
+            color: false,
         }
+    }
+
+    /// Create a config with color output enabled
+    pub fn with_color(mut self, color: bool) -> Self {
+        self.color = color;
+        self
     }
 }
 
@@ -327,6 +516,10 @@ pub struct NodeData {
     pub label: String,
     /// Visual shape of the node
     pub shape: NodeShape,
+    /// CSS class names applied to this node (from `:::className` or `class` statement)
+    pub classes: Vec<String>,
+    /// Inline style (from `style nodeId ...` statement)
+    pub inline_style: Option<StyleDefinition>,
 }
 
 impl NodeData {
@@ -336,6 +529,8 @@ impl NodeData {
             id: id.into(),
             label: label.into(),
             shape: NodeShape::Rectangle,
+            classes: Vec::new(),
+            inline_style: None,
         }
     }
 
@@ -345,7 +540,22 @@ impl NodeData {
             id: id.into(),
             label: label.into(),
             shape,
+            classes: Vec::new(),
+            inline_style: None,
         }
+    }
+
+    /// Add a CSS class to this node
+    pub fn add_class(&mut self, class: impl Into<String>) {
+        let class = class.into();
+        if !self.classes.contains(&class) {
+            self.classes.push(class);
+        }
+    }
+
+    /// Set inline style for this node
+    pub fn set_style(&mut self, style: StyleDefinition) {
+        self.inline_style = Some(style);
     }
 }
 
@@ -360,6 +570,8 @@ pub struct EdgeData {
     pub edge_type: EdgeType,
     /// Optional label on the edge
     pub label: Option<String>,
+    /// Style for this edge (from `linkStyle` statement)
+    pub style: Option<StyleDefinition>,
 }
 
 impl EdgeData {
@@ -370,6 +582,7 @@ impl EdgeData {
             to: to.into(),
             edge_type: EdgeType::Arrow,
             label: None,
+            style: None,
         }
     }
 
@@ -380,6 +593,7 @@ impl EdgeData {
             to: to.into(),
             edge_type,
             label: None,
+            style: None,
         }
     }
 
@@ -395,7 +609,13 @@ impl EdgeData {
             to: to.into(),
             edge_type,
             label: Some(label.into()),
+            style: None,
         }
+    }
+
+    /// Set style for this edge
+    pub fn set_style(&mut self, style: StyleDefinition) {
+        self.style = Some(style);
     }
 }
 
@@ -526,5 +746,117 @@ mod tests {
         assert_eq!(Direction::LeftRight.to_string(), "LR");
         assert_eq!(Direction::RightLeft.to_string(), "RL");
         assert_eq!(Direction::BottomUp.to_string(), "BT");
+    }
+
+    #[test]
+    fn test_color_parse_hex() {
+        // 6-digit hex
+        assert_eq!(
+            Color::parse("#ff0000"),
+            Some(Color::Hex("#ff0000".to_string()))
+        );
+        // 3-digit hex
+        assert_eq!(
+            Color::parse("#f00"),
+            Some(Color::Hex("#f00".to_string()))
+        );
+        // With whitespace
+        assert_eq!(
+            Color::parse("  #abc  "),
+            Some(Color::Hex("#abc".to_string()))
+        );
+        // Invalid hex
+        assert_eq!(Color::parse("#gg0000"), None);
+        assert_eq!(Color::parse("#12345"), None); // 5 digits
+    }
+
+    #[test]
+    fn test_color_parse_named() {
+        assert_eq!(
+            Color::parse("red"),
+            Some(Color::Named("red".to_string()))
+        );
+        assert_eq!(
+            Color::parse("BLUE"),
+            Some(Color::Named("blue".to_string()))
+        );
+        // Invalid
+        assert_eq!(Color::parse("red123"), None);
+        assert_eq!(Color::parse(""), None);
+    }
+
+    #[test]
+    fn test_color_to_rgb() {
+        // 6-digit hex
+        assert_eq!(Color::Hex("#ff0000".to_string()).to_rgb(), Some((255, 0, 0)));
+        assert_eq!(Color::Hex("#00ff00".to_string()).to_rgb(), Some((0, 255, 0)));
+        // 3-digit hex
+        assert_eq!(Color::Hex("#f00".to_string()).to_rgb(), Some((255, 0, 0)));
+        assert_eq!(Color::Hex("#0f0".to_string()).to_rgb(), Some((0, 255, 0)));
+        // Named colors
+        assert_eq!(Color::Named("red".to_string()).to_rgb(), Some((255, 0, 0)));
+        assert_eq!(Color::Named("unknown".to_string()).to_rgb(), None);
+    }
+
+    #[test]
+    fn test_style_definition_parse() {
+        let style = StyleDefinition::parse("fill:#f9f,stroke:#333,stroke-width:4px,color:#fff");
+        assert_eq!(style.fill, Some(Color::Hex("#f9f".to_string())));
+        assert_eq!(style.stroke, Some(Color::Hex("#333".to_string())));
+        assert_eq!(style.text_color, Some(Color::Hex("#fff".to_string())));
+        assert_eq!(style.stroke_width, Some(4));
+    }
+
+    #[test]
+    fn test_style_definition_parse_dasharray() {
+        let style = StyleDefinition::parse("stroke-dasharray:5 5");
+        assert!(style.stroke_dasharray);
+
+        let style = StyleDefinition::parse("stroke-dasharray:0");
+        assert!(!style.stroke_dasharray);
+    }
+
+    #[test]
+    fn test_style_definition_merge() {
+        let mut base = StyleDefinition::parse("fill:#f00,stroke:#0f0");
+        let overlay = StyleDefinition::parse("stroke:#00f,color:#fff");
+        base.merge(&overlay);
+
+        assert_eq!(base.fill, Some(Color::Hex("#f00".to_string()))); // Kept from base
+        assert_eq!(base.stroke, Some(Color::Hex("#00f".to_string()))); // Overwritten
+        assert_eq!(base.text_color, Some(Color::Hex("#fff".to_string()))); // Added
+    }
+
+    #[test]
+    fn test_style_definition_is_empty() {
+        assert!(StyleDefinition::default().is_empty());
+        assert!(!StyleDefinition::parse("fill:#f00").is_empty());
+    }
+
+    #[test]
+    fn test_node_data_with_classes() {
+        let mut node = NodeData::new("A", "Label");
+        assert!(node.classes.is_empty());
+
+        node.add_class("highlight");
+        node.add_class("important");
+        node.add_class("highlight"); // Duplicate, should not add
+
+        assert_eq!(node.classes.len(), 2);
+        assert!(node.classes.contains(&"highlight".to_string()));
+        assert!(node.classes.contains(&"important".to_string()));
+    }
+
+    #[test]
+    fn test_node_data_with_style() {
+        let mut node = NodeData::new("A", "Label");
+        assert!(node.inline_style.is_none());
+
+        node.set_style(StyleDefinition::parse("fill:#f00"));
+        assert!(node.inline_style.is_some());
+        assert_eq!(
+            node.inline_style.unwrap().fill,
+            Some(Color::Hex("#f00".to_string()))
+        );
     }
 }

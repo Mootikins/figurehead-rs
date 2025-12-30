@@ -1,4 +1,6 @@
 pkg/
 *.wasm
-*.js
 *.d.ts
+# Ignore compiled JS, but keep sw.js (source file)
+*.js
+!sw.js

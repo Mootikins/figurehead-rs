@@ -73,6 +73,7 @@ impl StateDatabase {
             to,
             edge_type: transition.edge_type,
             label: transition.label,
+            style: transition.style.clone(),
         };
         self.transitions.push(modified);
         Ok(())
