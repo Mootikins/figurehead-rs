@@ -1,21 +1,19 @@
-
-
-            │
-            ○
-            │
-            │
-         Initial
-            │
-            │
-            │
-            ○
-            │
-            │
-         Feature
-            │
-            │
-            │
-            ○
-            │
-            │
-         Release
+   │
+   ○
+   │
+   │
+Initial
+   │
+   │
+   │
+   ○
+   │
+   │
+Feature
+   │
+   │
+   │
+   ○
+   │
+   │
+Release

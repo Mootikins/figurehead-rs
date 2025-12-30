@@ -1,16 +1,16 @@
-  ┌────────┐      ┌────────┐    ┌──────────┐
-  │ Client │      │ Server │    │ Database │
-  └────────┘      └────────┘    └──────────┘
-       │─HTTP Request──▶              │
-       │               │              │
-       │               │────Query─────▶
-       │               │              │
-       │               ◀╌╌╌Results╌╌╌╌│
-       │               │              │
-       ◀╌╌╌Response╌╌╌╌│              │
-       │               │              │
-       │───Sync call────              │
-       │               │              │
-       │ Sync response╌│              │
-       │               │              │
-       │               │              │
+┌────────┐      ┌────────┐    ┌──────────┐
+│ Client │      │ Server │    │ Database │
+└────────┘      └────────┘    └──────────┘
+     │─HTTP Request──▶              │
+     │               │              │
+     │               │────Query─────▶
+     │               │              │
+     │               ◀╌╌╌Results╌╌╌╌│
+     │               │              │
+     ◀╌╌╌Response╌╌╌╌│              │
+     │               │              │
+     │───Sync call────              │
+     │               │              │
+     │ Sync response╌│              │
+     │               │              │
+     │               │              │

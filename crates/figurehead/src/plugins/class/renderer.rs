@@ -9,59 +9,7 @@ use super::database::{ClassDatabase, RelationshipKind};
 use super::layout::{
     ClassLayoutAlgorithm, ClassLayoutResult, PositionedClass, PositionedRelationship,
 };
-
-/// ASCII canvas for rendering
-struct Canvas {
-    cells: Vec<Vec<char>>,
-    width: usize,
-    height: usize,
-}
-
-impl Canvas {
-    fn new(width: usize, height: usize) -> Self {
-        Self {
-            cells: vec![vec![' '; width]; height],
-            width,
-            height,
-        }
-    }
-
-    fn set(&mut self, x: usize, y: usize, c: char) {
-        if y < self.height && x < self.width {
-            self.cells[y][x] = c;
-        }
-    }
-
-    fn draw_horizontal(&mut self, x: usize, y: usize, len: usize, c: char) {
-        for i in 0..len {
-            self.set(x + i, y, c);
-        }
-    }
-
-    fn draw_text(&mut self, x: usize, y: usize, text: &str) {
-        for (i, c) in text.chars().enumerate() {
-            self.set(x + i, y, c);
-        }
-    }
-
-    fn draw_text_centered(&mut self, x: usize, y: usize, width: usize, text: &str) {
-        let text_width = UnicodeWidthStr::width(text);
-        let padding = (width.saturating_sub(text_width)) / 2;
-        self.draw_text(x + padding, y, text);
-    }
-}
-
-impl std::fmt::Display for Canvas {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let output = self
-            .cells
-            .iter()
-            .map(|row| row.iter().collect::<String>().trim_end().to_string())
-            .collect::<Vec<_>>()
-            .join("\n");
-        write!(f, "{}", output)
-    }
-}
+use crate::core::AsciiCanvas;
 
 /// Class diagram renderer
 pub struct ClassRenderer;
@@ -71,8 +19,15 @@ impl ClassRenderer {
         Self
     }
 
+    /// Draw text centered within a given width
+    fn draw_text_in_box(&self, canvas: &mut AsciiCanvas, x: usize, y: usize, width: usize, text: &str) {
+        let text_width = UnicodeWidthStr::width(text);
+        let padding = (width.saturating_sub(text_width)) / 2;
+        canvas.draw_text(x + padding, y, text);
+    }
+
     /// Draw a class box on the canvas
-    fn draw_class(&self, canvas: &mut Canvas, class: &PositionedClass) {
+    fn draw_class(&self, canvas: &mut AsciiCanvas, class: &PositionedClass) {
         let x = class.x;
         let y = class.y;
         let w = class.width;
@@ -91,32 +46,32 @@ impl ClassRenderer {
         let mut cy = y;
 
         // Top border
-        canvas.set(x, cy, TOP_LEFT);
-        canvas.draw_horizontal(x + 1, cy, w - 2, HORIZONTAL);
-        canvas.set(x + w - 1, cy, TOP_RIGHT);
+        canvas.set_char(x, cy, TOP_LEFT);
+        canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
+        canvas.set_char(x + w - 1, cy, TOP_RIGHT);
         cy += 1;
 
         // Class name (centered) - clear content area first
-        canvas.set(x, cy, VERTICAL);
-        canvas.draw_horizontal(x + 1, cy, w - 2, ' '); // Clear content area
-        canvas.draw_text_centered(x + 1, cy, w - 2, &class.name);
-        canvas.set(x + w - 1, cy, VERTICAL);
+        canvas.set_char(x, cy, VERTICAL);
+        canvas.draw_horizontal_line(x + 1, cy, w - 2, ' '); // Clear content area
+        self.draw_text_in_box(canvas, x + 1, cy, w - 2, &class.name);
+        canvas.set_char(x + w - 1, cy, VERTICAL);
         cy += 1;
 
         // Attributes section
         if !class.attributes.is_empty() {
             // Separator
-            canvas.set(x, cy, T_LEFT);
-            canvas.draw_horizontal(x + 1, cy, w - 2, HORIZONTAL);
-            canvas.set(x + w - 1, cy, T_RIGHT);
+            canvas.set_char(x, cy, T_LEFT);
+            canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
+            canvas.set_char(x + w - 1, cy, T_RIGHT);
             cy += 1;
 
             // Attributes
             for attr in &class.attributes {
-                canvas.set(x, cy, VERTICAL);
-                canvas.draw_horizontal(x + 1, cy, w - 2, ' '); // Clear content area
+                canvas.set_char(x, cy, VERTICAL);
+                canvas.draw_horizontal_line(x + 1, cy, w - 2, ' '); // Clear content area
                 canvas.draw_text(x + 2, cy, attr);
-                canvas.set(x + w - 1, cy, VERTICAL);
+                canvas.set_char(x + w - 1, cy, VERTICAL);
                 cy += 1;
             }
         }
@@ -124,25 +79,25 @@ impl ClassRenderer {
         // Methods section
         if !class.methods.is_empty() {
             // Separator
-            canvas.set(x, cy, T_LEFT);
-            canvas.draw_horizontal(x + 1, cy, w - 2, HORIZONTAL);
-            canvas.set(x + w - 1, cy, T_RIGHT);
+            canvas.set_char(x, cy, T_LEFT);
+            canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
+            canvas.set_char(x + w - 1, cy, T_RIGHT);
             cy += 1;
 
             // Methods
             for method in &class.methods {
-                canvas.set(x, cy, VERTICAL);
-                canvas.draw_horizontal(x + 1, cy, w - 2, ' '); // Clear content area
+                canvas.set_char(x, cy, VERTICAL);
+                canvas.draw_horizontal_line(x + 1, cy, w - 2, ' '); // Clear content area
                 canvas.draw_text(x + 2, cy, method);
-                canvas.set(x + w - 1, cy, VERTICAL);
+                canvas.set_char(x + w - 1, cy, VERTICAL);
                 cy += 1;
             }
         }
 
         // Bottom border
-        canvas.set(x, cy, BOTTOM_LEFT);
-        canvas.draw_horizontal(x + 1, cy, w - 2, HORIZONTAL);
-        canvas.set(x + w - 1, cy, BOTTOM_RIGHT);
+        canvas.set_char(x, cy, BOTTOM_LEFT);
+        canvas.draw_horizontal_line(x + 1, cy, w - 2, HORIZONTAL);
+        canvas.set_char(x + w - 1, cy, BOTTOM_RIGHT);
     }
 
     /// Get line character for a relationship type
@@ -174,7 +129,7 @@ impl ClassRenderer {
     }
 
     /// Draw relationship line (without arrow head)
-    fn draw_relationship_line(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
+    fn draw_relationship_line(&self, canvas: &mut AsciiCanvas, rel: &PositionedRelationship) {
         let line_char = Self::line_char_for(rel.kind);
         let is_horizontal = rel.from_y == rel.to_y;
 
@@ -187,7 +142,7 @@ impl ClassRenderer {
             };
 
             for x in left_x..right_x {
-                canvas.set(x, y, line_char);
+                canvas.set_char(x, y, line_char);
             }
         } else {
             let x = rel.from_x;
@@ -198,22 +153,22 @@ impl ClassRenderer {
             };
 
             for y in top_y..bottom_y {
-                canvas.set(x, y, '│');
+                canvas.set_char(x, y, '│');
             }
         }
     }
 
     /// Draw relationship arrow head only
-    fn draw_relationship_arrow(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
+    fn draw_relationship_arrow(&self, canvas: &mut AsciiCanvas, rel: &PositionedRelationship) {
         let arrow_char = Self::arrow_char_for(rel.kind);
         let is_horizontal = rel.from_y == rel.to_y;
 
         if is_horizontal {
             let y = rel.from_y;
-            canvas.set(rel.to_x.saturating_sub(1), y, arrow_char);
+            canvas.set_char(rel.to_x.saturating_sub(1), y, arrow_char);
         } else {
             let x = rel.from_x;
-            canvas.set(
+            canvas.set_char(
                 x,
                 rel.to_y.saturating_sub(1),
                 if rel.to_y > rel.from_y { '▽' } else { '△' },
@@ -222,7 +177,7 @@ impl ClassRenderer {
     }
 
     /// Draw relationship label (drawn last so it's on top)
-    fn draw_relationship_label(&self, canvas: &mut Canvas, rel: &PositionedRelationship) {
+    fn draw_relationship_label(&self, canvas: &mut AsciiCanvas, rel: &PositionedRelationship) {
         if let Some(ref label) = rel.label {
             let is_horizontal = rel.from_y == rel.to_y;
 
@@ -252,7 +207,7 @@ impl ClassRenderer {
         } else {
             2
         };
-        let mut canvas = Canvas::new(layout.width + 1, layout.height + extra_height + 1);
+        let mut canvas = AsciiCanvas::new(layout.width + 1, layout.height + extra_height + 1);
 
         // Draw relationship lines first
         for rel in &layout.relationships {

@@ -6,84 +6,7 @@ use anyhow::Result;
 
 use super::database::{ArrowHead, ArrowType, LineStyle, SequenceDatabase};
 use super::layout::SequenceLayoutAlgorithm;
-use crate::core::CharacterSet;
-
-/// ASCII canvas for sequence diagram rendering
-struct Canvas {
-    width: usize,
-    height: usize,
-    grid: Vec<Vec<char>>,
-}
-
-impl Canvas {
-    fn new(width: usize, height: usize) -> Self {
-        let grid = vec![vec![' '; width.max(1)]; height.max(1)];
-        Self {
-            width,
-            height,
-            grid,
-        }
-    }
-
-    fn set_char(&mut self, x: usize, y: usize, c: char) {
-        if y < self.height && x < self.width {
-            self.grid[y][x] = c;
-        }
-    }
-
-    fn draw_text_centered(&mut self, center_x: usize, y: usize, text: &str) {
-        let start_x = center_x.saturating_sub(text.len() / 2);
-        for (i, c) in text.chars().enumerate() {
-            self.set_char(start_x + i, y, c);
-        }
-    }
-
-    fn draw_horizontal_line(&mut self, x1: usize, x2: usize, y: usize, solid: bool, unicode: bool) {
-        let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
-        let line_char = if solid {
-            if unicode {
-                '─'
-            } else {
-                '-'
-            }
-        } else if unicode {
-            '╌'
-        } else {
-            '-'
-        };
-
-        for x in start..=end {
-            self.set_char(x, y, line_char);
-        }
-    }
-
-    fn draw_vertical_line(&mut self, x: usize, y1: usize, y2: usize, unicode: bool) {
-        let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
-        let line_char = if unicode { '│' } else { '|' };
-
-        for y in start..=end {
-            // Don't overwrite existing non-space characters (like arrows)
-            if self.grid[y][x] == ' ' {
-                self.set_char(x, y, line_char);
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for Canvas {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let output = self
-            .grid
-            .iter()
-            .map(|row| {
-                let s: String = row.iter().collect();
-                s.trim_end().to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        write!(f, "{}", output.trim_end())
-    }
-}
+use crate::core::{AsciiCanvas, CharacterSet};
 
 /// Sequence diagram renderer
 pub struct SequenceRenderer {
@@ -105,8 +28,35 @@ impl SequenceRenderer {
         !self.style.is_ascii()
     }
 
+    /// Draw a horizontal line with style options
+    fn draw_styled_horizontal(&self, canvas: &mut AsciiCanvas, x1: usize, x2: usize, y: usize, solid: bool) {
+        let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
+        let line_char = if solid {
+            if self.is_unicode() { '─' } else { '-' }
+        } else if self.is_unicode() {
+            '╌'
+        } else {
+            '-'
+        };
+        for x in start..=end {
+            canvas.set_char(x, y, line_char);
+        }
+    }
+
+    /// Draw a vertical lifeline
+    fn draw_lifeline(&self, canvas: &mut AsciiCanvas, x: usize, y1: usize, y2: usize) {
+        let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
+        let line_char = if self.is_unicode() { '│' } else { '|' };
+        for y in start..=end {
+            // Don't overwrite existing non-space characters (like arrows)
+            if canvas.get_char(x, y) == ' ' {
+                canvas.set_char(x, y, line_char);
+            }
+        }
+    }
+
     /// Draw a participant header box
-    fn draw_participant(&self, canvas: &mut Canvas, x: usize, y: usize, label: &str, width: usize) {
+    fn draw_participant(&self, canvas: &mut AsciiCanvas, x: usize, y: usize, label: &str, width: usize) {
         let unicode = self.is_unicode();
 
         // Draw box around label
@@ -156,7 +106,7 @@ impl SequenceRenderer {
     /// Draw a message arrow with label
     fn draw_message(
         &self,
-        canvas: &mut Canvas,
+        canvas: &mut AsciiCanvas,
         from_x: usize,
         to_x: usize,
         y: usize,
@@ -202,7 +152,7 @@ impl SequenceRenderer {
         };
 
         if line_start < line_end {
-            canvas.draw_horizontal_line(line_start, line_end, y, solid, unicode);
+            self.draw_styled_horizontal(canvas, line_start, line_end, y, solid);
         }
 
         // Draw arrow head
@@ -226,8 +176,7 @@ impl SequenceRenderer {
             return Ok(String::new());
         }
 
-        let mut canvas = Canvas::new(layout.width, layout.height);
-        let unicode = self.is_unicode();
+        let mut canvas = AsciiCanvas::new(layout.width, layout.height);
 
         // Draw participant headers
         for participant in &layout.participants {
@@ -242,11 +191,11 @@ impl SequenceRenderer {
 
         // Draw lifelines
         for participant in &layout.participants {
-            canvas.draw_vertical_line(
+            self.draw_lifeline(
+                &mut canvas,
                 participant.x,
                 layout.lifeline_start_y,
                 layout.height - 1,
-                unicode,
             );
         }
 

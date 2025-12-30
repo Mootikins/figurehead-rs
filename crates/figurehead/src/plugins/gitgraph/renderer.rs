@@ -7,71 +7,7 @@ use tracing::{debug, info, span, trace, Level};
 
 use super::layout::{GitGraphLayoutAlgorithm, PositionedCommit};
 use super::GitGraphDatabase;
-use crate::core::{CharacterSet, Database, LayoutAlgorithm, Renderer};
-
-/// ASCII canvas for git graph rendering
-#[derive(Debug, Clone)]
-struct GitGraphCanvas {
-    pub width: usize,
-    pub height: usize,
-    pub grid: Vec<Vec<char>>,
-}
-
-impl GitGraphCanvas {
-    pub fn new(width: usize, height: usize) -> Self {
-        let grid = vec![vec![' '; width.max(1)]; height.max(1)];
-        Self {
-            width,
-            height,
-            grid,
-        }
-    }
-
-    fn ensure_size(&mut self, min_width: usize, min_height: usize) {
-        if min_width > self.width {
-            for row in &mut self.grid {
-                row.resize(min_width, ' ');
-            }
-            self.width = min_width;
-        }
-        if min_height > self.height {
-            let extra_rows = min_height - self.height;
-            self.grid
-                .extend((0..extra_rows).map(|_| vec![' '; self.width]));
-            self.height = min_height;
-        }
-    }
-
-    pub fn set_char(&mut self, x: usize, y: usize, c: char) {
-        self.ensure_size(x + 1, y + 1);
-        self.grid[y][x] = c;
-    }
-
-    pub fn draw_text(&mut self, x: usize, y: usize, text: &str) {
-        if text.is_empty() {
-            return;
-        }
-        self.ensure_size(x + text.len(), y + 1);
-        for (i, c) in text.chars().enumerate() {
-            self.set_char(x + i, y, c);
-        }
-    }
-}
-
-impl std::fmt::Display for GitGraphCanvas {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let output = self
-            .grid
-            .iter()
-            .map(|row| {
-                let s: String = row.iter().collect();
-                s.trim_end().to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        write!(f, "{}", output.trim_end())
-    }
-}
+use crate::core::{AsciiCanvas, CharacterSet, Database, LayoutAlgorithm, Renderer};
 
 /// Git graph ASCII renderer
 pub struct GitGraphRenderer {
@@ -89,7 +25,7 @@ impl GitGraphRenderer {
         Self { style }
     }
 
-    fn draw_commit(&self, canvas: &mut GitGraphCanvas, commit: &PositionedCommit, label: &str) {
+    fn draw_commit(&self, canvas: &mut AsciiCanvas, commit: &PositionedCommit, label: &str) {
         let x = commit.x + commit.width / 2;
         let y = commit.y + commit.height / 2;
 
@@ -102,7 +38,7 @@ impl GitGraphRenderer {
         canvas.draw_text(label_x.max(0), commit.y + commit.height + 1, label);
     }
 
-    fn draw_edge(&self, canvas: &mut GitGraphCanvas, waypoints: &[(usize, usize)]) {
+    fn draw_edge(&self, canvas: &mut AsciiCanvas, waypoints: &[(usize, usize)]) {
         if waypoints.len() < 2 {
             return;
         }
@@ -118,12 +54,7 @@ impl GitGraphRenderer {
             // Pure vertical line
             let (start, end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
             for y in start..=end {
-                let existing = if y < canvas.height && x1 < canvas.width {
-                    canvas.grid[y][x1]
-                } else {
-                    ' '
-                };
-                if existing == ' ' {
+                if canvas.get_char(x1, y) == ' ' {
                     canvas.set_char(x1, y, line_char);
                 }
             }
@@ -131,12 +62,7 @@ impl GitGraphRenderer {
             // Pure horizontal line
             let (start, end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
             for x in start..=end {
-                let existing = if y1 < canvas.height && x < canvas.width {
-                    canvas.grid[y1][x]
-                } else {
-                    ' '
-                };
-                if existing == ' ' {
+                if canvas.get_char(x, y1) == ' ' {
                     canvas.set_char(x, y1, h_line_char);
                 }
             }
@@ -145,12 +71,7 @@ impl GitGraphRenderer {
             // Vertical segment
             let (v_start, v_end) = if y1 < y2 { (y1, y2) } else { (y2, y1) };
             for y in v_start..=v_end {
-                let existing = if y < canvas.height && x1 < canvas.width {
-                    canvas.grid[y][x1]
-                } else {
-                    ' '
-                };
-                if existing == ' ' {
+                if canvas.get_char(x1, y) == ' ' {
                     canvas.set_char(x1, y, line_char);
                 }
             }
@@ -159,11 +80,7 @@ impl GitGraphRenderer {
             let (h_start, h_end) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
             let mid_y = if y1 == y2 { y1 } else { y1.min(y2) };
             for x in h_start..=h_end {
-                let existing = if mid_y < canvas.height && x < canvas.width {
-                    canvas.grid[mid_y][x]
-                } else {
-                    ' '
-                };
+                let existing = canvas.get_char(x, mid_y);
                 if existing == ' ' || existing == line_char {
                     canvas.set_char(x, mid_y, h_line_char);
                 }
@@ -213,7 +130,7 @@ impl Renderer<GitGraphDatabase> for GitGraphRenderer {
         }
 
         // Create canvas
-        let mut canvas = GitGraphCanvas::new(layout.width, layout.height);
+        let mut canvas = AsciiCanvas::new(layout.width, layout.height);
 
         // Draw edges first (so commits overlay them)
         for edge in &layout.edges {

@@ -1,49 +1,46 @@
+   ○
+
+
+ v1.0
+
+
+   │
+   ○
+   │
+   │
+ init
+   │
+   │
+   │
+   ○
+   │
+   │
+hotfix
+
+
+   │
+   ○
+   │
+   │
+feat-1
+   │
+   │
+   │
+   ○
+   │
+   │
+feat-2
 
 
 
-            ○
+   ○
 
 
-          v1.0
-
-
-            │
-            ○
-            │
-            │
-          init
-            │
-            │
-            │
-            ○
-            │
-            │
-         hotfix
-
-
-            │
-            ○
-            │
-            │
-         feat-1
-            │
-            │
-            │
-            ○
-            │
-            │
-         feat-2
+release
 
 
 
-            ○
+   ○
 
 
-         release
-
-
-
-            ○
-
-
-         feature
+feature
